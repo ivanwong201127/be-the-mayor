@@ -163,6 +163,7 @@ export interface VideoChunk {
 // Music Generation API Types (MiniMax)
 export interface MusicGenInput {
   lyrics: string;
+  duration?: number;
   bitrate?: number;
   song_file?: string;
   sample_rate?: number;
@@ -192,6 +193,7 @@ export interface MusicGenPrediction {
 // Music Generation Request/Response
 export interface MusicGenerationRequest {
   lyrics: string;
+  duration?: number;
   bitrate?: number;
   song_file?: string;
   sample_rate?: number;

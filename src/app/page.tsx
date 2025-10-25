@@ -1,22 +1,15 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import {
-  VIDEO_CAPTIONING_CONFIG,
-  VIDEO_UTILS,
-} from "@/constants/video-captioning";
-import Link from "next/link";
 import Image from "next/image";
 
 export default function Home() {
-  const [recordedVideo, setRecordedVideo] = useState<string | null>(null);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [caption, setCaption] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Desktop recording states
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
+  // Desktop camera states
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraLoading, setCameraLoading] = useState(false);
@@ -26,8 +19,12 @@ export default function Home() {
   const [generatedMusic, setGeneratedMusic] = useState<string | null>(null);
   const [rapLyrics, setRapLyrics] = useState<string>("");
   const [selectedCharacter, setSelectedCharacter] = useState<string>("blue");
-  const [characterImageUrl, setCharacterImageUrl] = useState<string | null>(null);
-  const [cachedRecordedVideo, setCachedRecordedVideo] = useState<string | null>(null);
+  const [characterImageUrl, setCharacterImageUrl] = useState<string | null>(
+    null
+  );
+  const [cachedRecordedVideo, setCachedRecordedVideo] = useState<string | null>(
+    null
+  );
 
   // New states for unified flow
   const [isProcessingFlow, setIsProcessingFlow] = useState(false);
@@ -38,9 +35,6 @@ export default function Home() {
   const [finalVideo, setFinalVideo] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
 
   // Detect desktop device
@@ -150,14 +144,22 @@ export default function Home() {
                 console.log("Loaded cached music:", entry.url);
               }
             }
-            
-            if (key.startsWith("recorded-video-")) {
+
+            if (key.startsWith("captured-image-")) {
               const entry = cache[key];
               if (entry && entry.url) {
                 setCachedRecordedVideo(entry.url);
-                // Also set as current recorded video so user doesn't need to re-record
-                setRecordedVideo(entry.url);
-                console.log("Loaded cached recorded video:", entry.url);
+                // Also set as current captured image so user doesn't need to re-capture
+                setCapturedImage(entry.url);
+                console.log("Loaded cached captured image:", entry.url);
+              }
+            }
+
+            if (key.startsWith("lyrics-")) {
+              const entry = cache[key];
+              if (entry && entry.text) {
+                setRapLyrics(entry.text);
+                console.log("Loaded cached lyrics:", entry.text);
               }
             }
           });
@@ -210,7 +212,7 @@ export default function Home() {
     },
   ];
 
-  const startRecording = useCallback(async () => {
+  const captureImage = useCallback(async () => {
     try {
       setError(null);
 
@@ -219,131 +221,112 @@ export default function Home() {
         return;
       }
 
-      if (!window.MediaRecorder) {
-        setError("Video recording is not supported on this device");
+      if (!videoRef.current) {
+        setError("Video element not available.");
         return;
       }
 
-      const mimeTypes = [
-        "video/webm;codecs=vp9",
-        "video/webm;codecs=vp8",
-        "video/webm",
-        "video/mp4",
-      ];
-      let selectedMimeType = "";
+      // Create canvas to capture image from video
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
 
-      for (const mimeType of mimeTypes) {
-        if (MediaRecorder.isTypeSupported(mimeType)) {
-          selectedMimeType = mimeType;
-          break;
-        }
+      if (!context) {
+        setError("Canvas context not available.");
+        return;
       }
 
-      if (!selectedMimeType) {
-        throw new Error("No supported video format found");
-      }
+      // Set canvas dimensions to match video
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
 
-      const mediaRecorder = new MediaRecorder(cameraStream, {
-        mimeType: selectedMimeType,
-      });
+      // Draw video frame to canvas
+      context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
 
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: selectedMimeType });
-        const videoUrl = URL.createObjectURL(blob);
-        setRecordedVideo(videoUrl);
-        
-        const file = new File([blob], "recorded-video.webm", { type: selectedMimeType });
-        setVideoFile(file);
-        setError(null);
-        setCaption(null);
-
-        // Save to cache
-        try {
-          const formData = new FormData();
-          formData.append('videoFile', file);
-          
-          const response = await fetch('/api/save-recorded-video', {
-            method: 'POST',
-            body: formData,
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            setCachedRecordedVideo(data.videoUrl);
-            console.log('Saved recorded video to cache:', data.videoUrl);
+      // Convert canvas to blob
+      canvas.toBlob(
+        async (blob) => {
+          if (!blob) {
+            setError("Failed to capture image.");
+            return;
           }
-        } catch (error) {
-          console.error('Failed to save recorded video to cache:', error);
-        }
-      };
 
-      mediaRecorder.start(1000);
-      setIsRecording(true);
-      setRecordingTime(0);
+          // Create image URL and file
+          const imageUrl = URL.createObjectURL(blob);
+          const file = new File([blob], "captured-image.jpg", {
+            type: "image/jpeg",
+          });
 
-      timerRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
-      }, 1000);
+          setCapturedImage(imageUrl);
+          setImageFile(file);
+          setError(null);
+          setCaption(null);
+
+          console.log("Image captured successfully:", imageUrl);
+
+          // Save to cache
+          try {
+            const formData = new FormData();
+            formData.append("imageFile", file);
+
+            const response = await fetch("/api/save-captured-image", {
+              method: "POST",
+              body: formData,
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              console.log("Saved captured image to cache:", data.imageUrl);
+            }
+          } catch (error) {
+            console.error("Failed to save captured image to cache:", error);
+          }
+        },
+        "image/jpeg",
+        0.9
+      );
     } catch (err) {
-      console.error("Recording error:", err);
-      setError("Failed to start recording. Please check camera permissions.");
+      console.error("Image capture error:", err);
+      setError("Failed to capture image. Please check camera permissions.");
     }
   }, [cameraStream]);
-
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    }
-  }, [isRecording]);
 
   const handleFileUpload = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (file) {
-        const validation = VIDEO_UTILS.validateVideoFile(file);
-
-        if (!validation.isValid) {
-          setError(validation.error || "Invalid video file");
+        // Check if it's an image file
+        if (!file.type.startsWith("image/")) {
+          setError("Please select an image file");
           return;
         }
 
-        setVideoFile(file);
-        setRecordedVideo(URL.createObjectURL(file));
+        // Check file size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          setError("Image file is too large. Maximum size is 10MB.");
+          return;
+        }
+
+        setImageFile(file);
+        setCapturedImage(URL.createObjectURL(file));
         setError(null);
         setCaption(null);
 
         // Save to cache
         try {
           const formData = new FormData();
-          formData.append('videoFile', file);
-          
-          const response = await fetch('/api/save-recorded-video', {
-            method: 'POST',
+          formData.append("imageFile", file);
+
+          const response = await fetch("/api/save-captured-image", {
+            method: "POST",
             body: formData,
           });
-          
+
           if (response.ok) {
             const data = await response.json();
-            setCachedRecordedVideo(data.videoUrl);
-            console.log('Saved uploaded video to cache:', data.videoUrl);
+            console.log("Saved uploaded image to cache:", data.imageUrl);
           }
         } catch (error) {
-          console.error('Failed to save uploaded video to cache:', error);
+          console.error("Failed to save uploaded image to cache:", error);
         }
       }
     },
@@ -400,8 +383,8 @@ export default function Home() {
 
   // Unified flow function
   const startUnifiedFlow = async () => {
-    if (!videoFile) {
-      setError("Please record or upload a video first");
+    if (!imageFile && !cachedRecordedVideo) {
+      setError("Please capture or upload an image first");
       return;
     }
 
@@ -410,14 +393,29 @@ export default function Home() {
     setError(null);
     setFinalVideo(null);
 
+    // If we have a cached image but no current imageFile, create a file from the cached image
+    let currentImageFile = imageFile;
+    if (!currentImageFile && cachedRecordedVideo) {
+      try {
+        // Fetch the cached image and create a File object
+        const response = await fetch(cachedRecordedVideo);
+        const blob = await response.blob();
+        currentImageFile = new File([blob], "cached-image.jpg", {
+          type: blob.type,
+        });
+        console.log("Using cached captured image:", cachedRecordedVideo);
+      } catch (error) {
+        console.error("Failed to load cached image:", error);
+        setError("Failed to load cached image. Please capture a new image.");
+        setIsProcessingFlow(false);
+        return;
+      }
+    }
+
     try {
       // Step 1: Generate Rap Lyrics with streaming (25%)
       setCurrentStep("Creating personalized rap lyrics...");
       setProgress(25);
-
-      // Generate rap lyrics using AI
-      setIsStreamingLyrics(true);
-      setStreamingLyrics("");
 
       const selectedChar = characterOptions.find(
         (char) => char.id === selectedCharacter
@@ -426,56 +424,91 @@ export default function Home() {
         throw new Error("Please select a character");
       }
 
-      const rapPrompt = `Create a personalized rap song for ${
-        selectedChar.name.split(" ")[0]
-      }, a ${
-        selectedChar.name.includes("BTS") ||
-        selectedChar.name.includes("BLACKPINK")
-          ? "K-pop star"
-          : "celebrity character"
-      }. The rap should be romantic and flirty, mentioning that they will give the listener a kiss at the end. Make it catchy, with rhymes and rhythm. Keep it to about 8 lines. The tone should be confident and charming.`;
+      let lyricsData: { text: string; error?: string };
 
-      const lyricsResponse = await makeApiCallWithRetry("/api/generate-text", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: rapPrompt,
-          verbosity: "medium",
-          reasoning_effort: "minimal",
-          max_completion_tokens: 500,
-          system_prompt:
-            "You are a talented rap songwriter. Create catchy, rhyming rap lyrics with a romantic and flirty tone. Focus on rhythm and flow. Keep responses concise and engaging.",
-        }),
-      });
+      // Check if we already have lyrics cached
+      if (rapLyrics) {
+        console.log("Using cached lyrics:", rapLyrics);
+        lyricsData = { text: rapLyrics };
+      } else {
+        // Generate rap lyrics using AI
+        setIsStreamingLyrics(true);
+        setStreamingLyrics("");
 
-      if (!lyricsResponse.ok) {
-        throw new Error("Failed to generate rap lyrics");
+        const rapPrompt = `Create a personalized rap song for ${
+          selectedChar.name.split(" ")[0]
+        }, a ${
+          selectedChar.name.includes("BTS") ||
+          selectedChar.name.includes("BLACKPINK")
+            ? "K-pop star"
+            : "celebrity character"
+        }. The rap should be romantic and flirty, mentioning that they will give the listener a kiss at the end. Make it catchy, with rhymes and rhythm. Keep it to about 8 lines. The tone should be confident and charming.`;
+
+        const lyricsResponse = await makeApiCallWithRetry("/api/generate-text", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: rapPrompt,
+            verbosity: "medium",
+            reasoning_effort: "minimal",
+            max_completion_tokens: 500,
+            system_prompt:
+              "You are a talented rap songwriter. Create catchy, rhyming rap lyrics with a romantic and flirty tone. Focus on rhythm and flow. Keep responses concise and engaging.",
+          }),
+        });
+
+        if (!lyricsResponse.ok) {
+          throw new Error("Failed to generate rap lyrics");
+        }
+
+        lyricsData = await lyricsResponse.json();
+        if (lyricsData.error) {
+          throw new Error(lyricsData.error);
+        }
+
+        // Simulate streaming by breaking the text into lines and displaying them progressively
+        const lines = lyricsData.text
+          .split("\n")
+          .filter((line: string) => line.trim());
+        let currentLyrics = "";
+
+        console.log("Generated lyrics:", lyricsData.text);
+        console.log("Lyrics lines:", lines);
+
+        for (let i = 0; i < lines.length; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 600)); // 600ms delay between lines
+          currentLyrics += (currentLyrics ? "\n" : "") + lines[i];
+          setStreamingLyrics(currentLyrics);
+          console.log("Streaming lyrics so far:", currentLyrics);
+        }
+
+        setIsStreamingLyrics(false);
+        setRapLyrics(lyricsData.text);
+        console.log("Final lyrics set:", lyricsData.text);
+
+        // Save lyrics to cache
+        try {
+          const lyricsCacheKey = `lyrics-${selectedChar.name}-${Date.now()}`;
+          const response = await fetch("/api/cache", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              key: lyricsCacheKey,
+              data: {
+                text: lyricsData.text,
+                character: selectedChar.name,
+                timestamp: Date.now(),
+              },
+            }),
+          });
+          
+          if (response.ok) {
+            console.log("Saved lyrics to cache:", lyricsCacheKey);
+          }
+        } catch (error) {
+          console.error("Failed to save lyrics to cache:", error);
+        }
       }
-
-      const lyricsData = await lyricsResponse.json();
-      if (lyricsData.error) {
-        throw new Error(lyricsData.error);
-      }
-
-      // Simulate streaming by breaking the text into lines and displaying them progressively
-      const lines = lyricsData.text
-        .split("\n")
-        .filter((line: string) => line.trim());
-      let currentLyrics = "";
-
-      console.log("Generated lyrics:", lyricsData.text);
-      console.log("Lyrics lines:", lines);
-
-      for (let i = 0; i < lines.length; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 600)); // 600ms delay between lines
-        currentLyrics += (currentLyrics ? "\n" : "") + lines[i];
-        setStreamingLyrics(currentLyrics);
-        console.log("Streaming lyrics so far:", currentLyrics);
-      }
-
-      setIsStreamingLyrics(false);
-      setRapLyrics(lyricsData.text);
-      console.log("Final lyrics set:", lyricsData.text);
 
       // Add delay to prevent rate limiting
       await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 second delay
@@ -498,6 +531,7 @@ export default function Home() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               lyrics: lyricsData.text,
+              duration: 20, // 20 seconds as requested
               bitrate: 256000,
               sample_rate: 44100,
             }),
@@ -533,21 +567,23 @@ export default function Home() {
       // Add delay to prevent rate limiting
       await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 second delay
 
-      // Step 3: Generate Character Image (75%)
-      setCurrentStep("Creating character image...");
+      // Step 3: Generate Image with Celebrity in Background (75%)
+      setCurrentStep("Creating image with celebrity in background...");
       setProgress(75);
+
+      const celebrityPrompt = `Create an image with ${selectedChar.name} in the background environment. The celebrity should be naturally integrated into the scene, looking like they belong in that environment. High quality, cinematic lighting, realistic composition. The celebrity will be rapping in this environment.`;
 
       const characterImageResponse = await fetch("/api/get-character-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           characterName: selectedChar.name,
-          characterDescription: selectedChar.description,
+          characterDescription: celebrityPrompt,
         }),
       });
 
       if (!characterImageResponse.ok) {
-        throw new Error("Failed to generate character image");
+        throw new Error("Failed to generate celebrity image");
       }
 
       const characterImageData = await characterImageResponse.json();
@@ -557,8 +593,8 @@ export default function Home() {
 
       setCharacterImageUrl(characterImageData.imageUrl);
 
-      // Step 4: Generate Omni-Human Video (90%)
-      setCurrentStep("Creating your celebrity invitation video...");
+      // Step 4: Generate Video with Celebrity Rapping (90%)
+      setCurrentStep("Creating video with celebrity rapping...");
       setProgress(90);
 
       const omniHumanResponse = await fetch("/api/generate-video", {
@@ -586,35 +622,7 @@ export default function Home() {
       // Add delay to prevent rate limiting
       await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 second delay
 
-      // Step 4: Generate Caption (100%)
-      setCurrentStep("Adding final touches...");
-      setProgress(100);
-
-      const captionResponse = await fetch("/api/caption-video", {
-        method: "POST",
-        body: (() => {
-          const formData = new FormData();
-          formData.append("videoFile", videoFile);
-          formData.append("prompt", VIDEO_CAPTIONING_CONFIG.DEFAULT_PROMPT);
-          formData.append(
-            "maxNewTokens",
-            VIDEO_CAPTIONING_CONFIG.DEFAULT_MAX_TOKENS.toString()
-          );
-          return formData;
-        })(),
-      });
-
-      if (!captionResponse.ok) {
-        throw new Error("Failed to generate caption");
-      }
-
-      const captionData = await captionResponse.json();
-      if (captionData.error) {
-        throw new Error(captionData.error);
-      }
-
-      setCaption(captionData.caption);
-      setCurrentStep("Complete! Your celebrity video is ready!");
+      setCurrentStep("Complete! Your celebrity lip sync video is ready!");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       console.error("Unified flow error:", err);
@@ -624,12 +632,10 @@ export default function Home() {
   };
 
   const resetAll = () => {
-    setRecordedVideo(null);
-    setVideoFile(null);
+    setCapturedImage(null);
+    setImageFile(null);
     setCaption(null);
     setError(null);
-    setIsRecording(false);
-    setRecordingTime(0);
     setGeneratedMusic(null);
     setFinalVideo(null);
     setStreamingLyrics("");
@@ -640,21 +646,10 @@ export default function Home() {
     setCharacterImageUrl(null);
     setCachedRecordedVideo(null);
 
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-
-    if (mediaRecorderRef.current) {
-      mediaRecorderRef.current = null;
-    }
-
     if (cameraStreamRef.current) {
       cameraStreamRef.current.getTracks().forEach((track) => track.stop());
       cameraStreamRef.current = null;
     }
-
-    chunksRef.current = [];
   };
 
   return (
@@ -672,12 +667,12 @@ export default function Home() {
 
           {/* Navigation */}
           <div className="mt-6 flex flex-col sm:flex-row gap-4 items-center justify-center">
-            <Link
+            {/* <Link
               href="/campaign"
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors"
             >
               🗳️ Campaign Mode
-            </Link>
+            </Link> */}
             <button
               onClick={resetAll}
               className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors"
@@ -695,10 +690,10 @@ export default function Home() {
             </h2>
 
             <div className="space-y-6 sm:space-y-8">
-              {/* Video Recording/Upload Section */}
+              {/* Image Capture/Upload Section */}
               <div className="space-y-4">
                 <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
-                  Step 1: Record or Upload Your Video
+                  Step 1: Capture or Upload Your Image
                 </h3>
 
                 {isDesktop ? (
@@ -740,40 +735,31 @@ export default function Home() {
                               backgroundColor: "#1f2937",
                             }}
                           />
-                          {isRecording && (
-                            <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full">
-                              <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                              <span className="text-sm font-medium">
-                                REC {VIDEO_UTILS.formatTime(recordingTime)}
-                              </span>
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
 
-                    {/* Recording Controls */}
+                    {/* Image Capture Controls */}
                     <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
-                      {!isRecording ? (
-                        <button
-                          onClick={startRecording}
-                          className="bg-red-600 text-white py-4 px-8 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center gap-3 text-lg"
-                          style={{ minHeight: "48px", minWidth: "200px" }}
+                      <button
+                        onClick={captureImage}
+                        disabled={!cameraStream || cameraLoading}
+                        className="bg-blue-600 text-white py-4 px-8 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-3 text-lg"
+                        style={{ minHeight: "48px", minWidth: "200px" }}
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
                         >
-                          <span className="w-4 h-4 bg-white rounded-full"></span>
-                          Start Recording
-                        </button>
-                      ) : (
-                        <button
-                          onClick={stopRecording}
-                          className="bg-gray-600 text-white py-4 px-8 rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center gap-3 text-lg"
-                          style={{ minHeight: "48px", minWidth: "200px" }}
-                        >
-                          <span className="w-4 h-4 bg-white rounded-full"></span>
-                          Stop Recording (
-                          {VIDEO_UTILS.formatTime(recordingTime)})
-                        </button>
-                      )}
+                          <path
+                            fillRule="evenodd"
+                            d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        Capture Image
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -796,19 +782,17 @@ export default function Home() {
                     </div>
                     <div className="space-y-2">
                       <p className="text-lg font-medium text-gray-900">
-                        Upload a video file
+                        Upload an image file
                       </p>
                       <p className="text-sm text-gray-500">
-                        Supports MP4, WebM, MOV, and other video formats
+                        Supports JPG, PNG, and other image formats
                       </p>
                       <p className="text-xs text-gray-400">
-                        Maximum file size:{" "}
-                        {VIDEO_CAPTIONING_CONFIG.MAX_FILE_SIZE / (1024 * 1024)}
-                        MB
+                        Maximum file size: 10 MB
                       </p>
                     </div>
                     <div className="mt-6">
-                      <label htmlFor="video-upload" className="cursor-pointer">
+                      <label htmlFor="image-upload" className="cursor-pointer">
                         <span className="bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors inline-flex items-center gap-2">
                           <svg
                             className="w-5 h-5"
@@ -823,12 +807,12 @@ export default function Home() {
                               d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                             />
                           </svg>
-                          Choose Video File
+                          Choose Image File
                         </span>
                         <input
-                          id="video-upload"
+                          id="image-upload"
                           type="file"
-                          accept="video/*"
+                          accept="image/*"
                           onChange={handleFileUpload}
                           className="hidden"
                         />
@@ -837,16 +821,17 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* Video Preview */}
-                {recordedVideo && (
+                {/* Image Preview */}
+                {capturedImage && (
                   <div className="mt-6">
                     <h4 className="text-md font-medium text-gray-900 mb-3">
-                      Your Video
+                      Your Image
                     </h4>
-                    <video
-                      src={recordedVideo}
-                      controls
-                      playsInline
+                    <Image
+                      src={capturedImage}
+                      alt="Captured image"
+                      width={800}
+                      height={400}
                       className="w-full max-w-2xl mx-auto rounded-lg shadow-lg"
                       style={{ maxHeight: "400px" }}
                     />
@@ -902,7 +887,9 @@ export default function Home() {
 
                 <button
                   onClick={startUnifiedFlow}
-                  disabled={!videoFile || isProcessingFlow}
+                  disabled={
+                    (!imageFile && !cachedRecordedVideo) || isProcessingFlow
+                  }
                   className="bg-linear-to-r from-purple-600 to-pink-600 text-white py-6 px-12 rounded-xl font-bold hover:from-purple-700 hover:to-pink-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center gap-4 text-xl touch-manipulation shadow-lg"
                   style={{ minHeight: "60px", minWidth: "300px" }}
                 >
@@ -1053,29 +1040,33 @@ export default function Home() {
         </div>
 
         {/* Preview Section */}
-        {(rapLyrics || generatedMusic || characterImageUrl || finalVideo || cachedRecordedVideo) && (
+        {(rapLyrics ||
+          generatedMusic ||
+          characterImageUrl ||
+          finalVideo ||
+          cachedRecordedVideo) && (
           <div className="max-w-4xl mx-auto mt-8">
             <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8">
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 text-center">
                 📁 Current Saved Data
               </h2>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Cached Recorded Video Preview */}
+                {/* Cached Captured Image Preview */}
                 {cachedRecordedVideo && (
                   <div className="bg-orange-50 rounded-lg p-4 border-2 border-orange-200">
                     <h3 className="text-lg font-semibold text-orange-900 mb-3 flex items-center gap-2">
-                      📹 Cached Recorded Video
+                      📸 Cached Captured Image
                     </h3>
                     <div className="bg-white p-3 rounded-lg border">
-                      <video
-                        controls
+                      <Image
                         src={cachedRecordedVideo}
+                        alt="Cached captured image"
+                        width={400}
+                        height={200}
                         className="w-full rounded-lg"
                         style={{ maxHeight: "200px" }}
-                      >
-                        Your browser does not support the video tag.
-                      </video>
+                      />
                     </div>
                   </div>
                 )}

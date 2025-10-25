@@ -64,26 +64,26 @@ export async function POST(request: NextRequest) {
     let characterPrompt = "";
 
     if (characterName.toLowerCase().includes("jungkook")) {
-      characterPrompt =
+      characterPrompt +=
         "Jungkook from BTS, handsome Korean male idol with dark hair, wearing stylish outfit, giving a kiss at the end of the video. Professional K-pop star appearance, charismatic smile, dancing gracefully.";
     } else if (characterName.toLowerCase().includes("jimin")) {
-      characterPrompt =
+      characterPrompt +=
         "Jimin from BTS, beautiful Korean male idol with blonde hair, wearing elegant outfit, giving a kiss at the end of the video. Professional K-pop star appearance, charming smile, smooth dance moves.";
     } else if (characterName.toLowerCase().includes("v")) {
-      characterPrompt =
+      characterPrompt +=
         "V (Taehyung) from BTS, handsome Korean male idol with dark hair, wearing fashionable outfit, giving a kiss at the end of the video. Professional K-pop star appearance, deep voice, artistic expression.";
     } else if (characterName.toLowerCase().includes("jennie")) {
-      characterPrompt =
+      characterPrompt +=
         "Jennie from BLACKPINK, beautiful Korean female idol with dark hair, wearing stylish outfit, giving a kiss at the end of the video. Professional K-pop star appearance, confident smile, elegant dance moves.";
     } else if (characterName.toLowerCase().includes("lisa")) {
-      characterPrompt =
+      characterPrompt +=
         "Lisa from BLACKPINK, beautiful Thai-Korean female idol with blonde hair, wearing trendy outfit, giving a kiss at the end of the video. Professional K-pop star appearance, bright smile, powerful dance moves.";
     } else if (characterName.toLowerCase().includes("blue")) {
-      characterPrompt =
+      characterPrompt +=
         "A charming blue character, friendly and approachable, wearing blue outfit, giving a kiss at the end of the video. Cartoon-style character, warm smile, animated movements.";
     } else {
       // Generic prompt based on description
-      characterPrompt = characterDescription; // Use the provided description as prompt
+      characterPrompt += characterDescription; // Use the provided description as prompt
     }
 
     console.log(`Generating character image: ${characterPrompt}`);

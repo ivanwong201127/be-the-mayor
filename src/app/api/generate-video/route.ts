@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Generate video using omni-human with the provided image
     const input: OmniHumanInput = {
       audio: audio,
       image: image
@@ -30,26 +31,91 @@ export async function POST(request: NextRequest) {
 
     console.log('Generating omni-human video with input:', JSON.stringify(input, null, 2));
 
-    const response = await fetch('https://api.replicate.com/v1/models/bytedance/omni-human/predictions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${replicateApiToken}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'wait'
-      },
-      body: JSON.stringify({ input })
-    });
+    // Retry logic for queue full errors
+    let data: OmniHumanPrediction | null = null;
+    
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`Attempt ${attempt}/3: Generating omni-human video...`);
+        
+        const response = await fetch('https://api.replicate.com/v1/models/bytedance/omni-human/predictions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${replicateApiToken}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'wait'
+          },
+          body: JSON.stringify({ input })
+        });
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('Omni-human API error:', errorData);
+        if (!response.ok) {
+          const errorData = await response.text();
+          console.error(`Attempt ${attempt}/3 - Omni-human API error:`, errorData);
+          
+          // Check if it's a queue full error
+          if (errorData.includes('Queue is full') || errorData.includes('queue is full')) {
+            if (attempt < 3) {
+              const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
+              console.log(`Queue is full. Waiting ${waitTime}ms before retry ${attempt + 1}/3...`);
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+              continue;
+            } else {
+              return NextResponse.json(
+                { error: 'Video generation queue is full. Please try again later.' },
+                { status: 503 }
+              );
+            }
+          } else {
+            // Non-queue error, don't retry
+            return NextResponse.json(
+              { error: 'Failed to generate omni-human video' },
+              { status: 500 }
+            );
+          }
+        }
+
+        data = await response.json();
+        
+        // Check if the response contains a queue full error
+        if (data && data.error && (data.error.includes('Queue is full') || data.error.includes('queue is full'))) {
+          if (attempt < 3) {
+            const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
+            console.log(`Queue is full in response. Waiting ${waitTime}ms before retry ${attempt + 1}/3...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            continue;
+          } else {
+            return NextResponse.json(
+              { error: 'Video generation queue is full. Please try again later.' },
+              { status: 503 }
+            );
+          }
+        }
+        
+        // Success, break out of retry loop
+        break;
+        
+      } catch (error) {
+        console.error(`Attempt ${attempt}/3 - Network error:`, error);
+        
+        if (attempt < 3) {
+          const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff: 2s, 4s, 8s
+          console.log(`Network error. Waiting ${waitTime}ms before retry ${attempt + 1}/3...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        } else {
+          return NextResponse.json(
+            { error: 'Failed to generate video after 3 attempts' },
+            { status: 500 }
+          );
+        }
+      }
+    }
+
+    if (!data) {
       return NextResponse.json(
-        { error: 'Failed to generate omni-human video' },
+        { error: 'Failed to generate video after all retry attempts' },
         { status: 500 }
       );
     }
-
-    const data: OmniHumanPrediction = await response.json();
 
     console.log('Omni-human API response:', data);
     

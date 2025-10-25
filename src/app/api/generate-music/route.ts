@@ -4,7 +4,7 @@ import { localCache } from '@/lib/cache';
 
 export async function POST(request: NextRequest) {
   try {
-    const { lyrics, bitrate, song_file, sample_rate }: MusicGenerationRequest = await request.json();
+    const { lyrics, duration, bitrate, song_file, sample_rate }: MusicGenerationRequest = await request.json();
 
     if (!lyrics) {
       return NextResponse.json(
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create cache key based on parameters
-    const cacheKey = `music-minimax-${lyrics.substring(0, 50)}-${bitrate || 256000}-${sample_rate || 44100}`;
+    const cacheKey = `music-minimax-${lyrics.substring(0, 50)}-${duration || 20}-${bitrate || 256000}-${sample_rate || 44100}`;
     
     // Check cache first
     const cachedEntry = localCache.get(cacheKey);
@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
     // MiniMax music generation input
     const input: MusicGenInput = {
       lyrics: lyrics,
+      duration: duration || 20, // Default to 20 seconds
       bitrate: bitrate || 256000,
       song_file: song_file || "https://replicate.delivery/pbxt/M9zum1Y6qujy02jeigHTJzn0lBTQOemB7OkH5XmmPSC5OUoO/MiniMax-Electronic.wav",
       sample_rate: sample_rate || 44100
