@@ -1,183 +1,125 @@
-# Be The Mayor - Next.js Full-Stack Application
+# Be The Mayor
 
-A modern Next.js application with authentication, database integration, and beautiful UI components built with TypeScript and Tailwind CSS.
+A modern Next.js application featuring an interactive map of America with major cities. Users can explore cities, filter by regions, and see detailed information about each city.
 
 ## Features
 
-- 🔐 **Authentication**: Secure user authentication with NextAuth.js
-- 🗄️ **Database**: PostgreSQL with Prisma ORM
-- 🎨 **Modern UI**: Beautiful components with Tailwind CSS
-- 📱 **Responsive**: Mobile-first responsive design
-- 🔒 **Type Safety**: Full TypeScript support
-- ⚡ **Performance**: Optimized with Next.js 16
+- 🗺️ **Interactive America Map**: Explore major US cities with click-to-select functionality
+- 🎨 **Beautiful UI**: Modern design with Tailwind CSS
+- 📱 **Responsive Design**: Works perfectly on all screen sizes
+- 🎯 **City Selection**: Click cities to select/deselect with visual feedback
+- 🌍 **Region Filtering**: Filter cities by Northeast, South, Midwest, and West regions
+- 📊 **City Information**: View population data and city details
+- ⚡ **Fast Performance**: Built with Next.js 16 and Turbopack
 
 ## Tech Stack
 
-- **Frontend**: Next.js 16, React, TypeScript, Tailwind CSS
-- **Backend**: Next.js API Routes, NextAuth.js
-- **Database**: PostgreSQL, Prisma ORM
-- **Authentication**: NextAuth.js with JWT
-- **Validation**: Zod for schema validation
-- **Styling**: Tailwind CSS
+- **Next.js 16** - React framework with Turbopack
+- **TypeScript** - Type safety and better development experience
+- **Tailwind CSS** - Utility-first CSS framework
+- **React 19** - Latest React features
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 18+ 
-- PostgreSQL database
 - npm or yarn
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd be-the-mayor
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Set up environment variables**
-   Create a `.env` file in the root directory:
-   ```env
-   # Database
-   DATABASE_URL="postgresql://username:password@localhost:5432/be_the_mayor?schema=public"
-   
-   # NextAuth.js
-   NEXTAUTH_URL="http://localhost:3000"
-   NEXTAUTH_SECRET="your-secret-key-here"
-   
-   # JWT
-   JWT_SECRET="your-jwt-secret-here"
-   
-   # App Configuration
-   NODE_ENV="development"
-   ```
-
-4. **Set up the database**
-   ```bash
-   # Generate Prisma client
-   npx prisma generate
-   
-   # Run database migrations
-   npx prisma migrate dev
-   ```
-
-5. **Start the development server**
-   ```bash
-   npm run dev
-   ```
-
-6. **Open your browser**
-   Navigate to [http://localhost:3000](http://localhost:3000)
-
-## Project Structure
-
-```
-src/
-├── app/                    # Next.js App Router
-│   ├── api/               # API routes
-│   │   ├── auth/          # Authentication endpoints
-│   │   └── user/         # User management endpoints
-│   ├── auth/              # Authentication pages
-│   ├── dashboard/         # Dashboard page
-│   └── layout.tsx         # Root layout
-├── components/            # Reusable components
-│   ├── navigation.tsx     # Navigation component
-│   └── providers.tsx     # Context providers
-├── lib/                  # Utility libraries
-│   ├── auth.ts          # NextAuth configuration
-│   └── prisma.ts        # Prisma client
-└── generated/           # Generated Prisma client
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd be-the-mayor
 ```
 
-## API Endpoints
-
-### Authentication
-- `POST /api/auth/register` - User registration
-- `GET /api/auth/[...nextauth]` - NextAuth.js endpoints
-
-### User Management
-- `GET /api/user/profile` - Get user profile
-
-## Database Schema
-
-The application uses Prisma with the following models:
-
-```prisma
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  password  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("users")
-}
+2. Install dependencies:
+```bash
+npm install
 ```
 
-## Development
+3. Start the development server:
+```bash
+npm run dev
+```
 
-### Available Scripts
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
+
+## Available Scripts
 
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
-- `npx prisma studio` - Open Prisma Studio
-- `npx prisma migrate dev` - Run database migrations
 
-### Database Commands
+## Project Structure
 
-```bash
-# Generate Prisma client
-npx prisma generate
-
-# Create a new migration
-npx prisma migrate dev --name migration_name
-
-# Reset the database
-npx prisma migrate reset
-
-# Open Prisma Studio
-npx prisma studio
+```
+be-the-mayor/
+├── src/
+│   ├── app/
+│   │   ├── globals.css          # Global styles with Tailwind
+│   │   ├── layout.tsx           # Root layout component
+│   │   └── page.tsx             # Home page with map
+│   └── components/
+│       ├── america-map.tsx      # Interactive map component
+│       └── map-data.ts          # City data and USA outline
+├── tailwind.config.js           # Tailwind configuration
+├── package.json
+└── README.md
 ```
 
-## Deployment
+## Map Features
 
-### Environment Variables for Production
+### City Selection
+- Click on any city dot to select/deselect it
+- Selected cities show with green color and pulsing animation
+- Unselected cities appear as red dots
+- Hover effects provide visual feedback
 
-Make sure to set the following environment variables in your production environment:
+### Region Filtering
+- Filter cities by geographic regions:
+  - **Northeast**: New York, Boston, Philadelphia, etc.
+  - **South**: Houston, Atlanta, Miami, etc.
+  - **Midwest**: Chicago, Detroit, Minneapolis, etc.
+  - **West**: Los Angeles, San Francisco, Seattle, etc.
 
-- `DATABASE_URL` - Your production database URL
-- `NEXTAUTH_URL` - Your production domain
-- `NEXTAUTH_SECRET` - A secure random string
-- `JWT_SECRET` - A secure random string for JWT signing
+### City Information
+- View population data for each city
+- See city names and state information
+- Quick stats showing total cities and selected count
 
-### Deploy to Vercel
+## Customization
 
-1. Push your code to GitHub
-2. Connect your repository to Vercel
-3. Set environment variables in Vercel dashboard
-4. Deploy!
+### Adding New Cities
+Edit `src/components/map-data.ts` to add new cities:
+
+```typescript
+{
+  id: 'city-name',
+  name: 'City Name',
+  state: 'State',
+  population: 1000000,
+  coordinates: [x, y], // SVG coordinates
+  region: 'Northeast' // or 'South', 'Midwest', 'West'
+}
+```
+
+### Styling
+The application uses Tailwind CSS with custom configurations in `tailwind.config.js`. You can:
+- Modify colors in the theme
+- Add custom animations
+- Extend the design system
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-
-If you have any questions or need help, please open an issue on GitHub.
+This project is open source and available under the [MIT License](LICENSE).
