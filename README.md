@@ -1,10 +1,14 @@
 # Be The Mayor
 
-A modern Next.js application featuring an interactive map of America with major cities. Users can explore cities, filter by regions, and see detailed information about each city.
+A modern Next.js application featuring AI-powered campaign material generation. Users can create personalized avatars, generate political campaign posters and videos in various styles, and explore an interactive map of America with major cities.
 
 ## Features
 
+- 🎭 **AI Avatar Generation**: Create personalized avatars using Replicate's AI models
 - 🗺️ **Interactive America Map**: Explore major US cities with click-to-select functionality
+- 🎨 **Campaign Poster Creation**: Generate political campaign posters in various styles
+- 🏛️ **Multiple Campaign Styles**: Choose from Communist, Republican, Liberal, Anime, Vintage, and Cyberpunk
+- 🏙️ **City-Specific Campaigns**: Each city has unique slogans, issues, and cultural elements
 - 🎨 **Beautiful UI**: Modern design with Tailwind CSS
 - 📱 **Responsive Design**: Works perfectly on all screen sizes
 - 🎯 **City Selection**: Click cities to select/deselect with visual feedback
@@ -39,12 +43,19 @@ cd be-the-mayor
 npm install
 ```
 
-3. Start the development server:
+3. Set up environment variables:
+Create a `.env` file in the root directory:
+```env
+REPLICATE_API_KEY=your_replicate_api_key_here
+NODE_ENV=development
+```
+
+4. Start the development server:
 ```bash
 npm run dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser
+5. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 ## Available Scripts
 
@@ -59,16 +70,49 @@ npm run dev
 be-the-mayor/
 ├── src/
 │   ├── app/
-│   │   ├── globals.css          # Global styles with Tailwind
-│   │   ├── layout.tsx           # Root layout component
-│   │   └── page.tsx             # Home page with map
-│   └── components/
-│       ├── america-map.tsx      # Interactive map component
-│       └── map-data.ts          # City data and USA outline
-├── tailwind.config.js           # Tailwind configuration
+│   │   ├── api/
+│   │   │   ├── generate-avatar/
+│   │   │   │   └── route.ts         # Avatar generation API endpoint
+│   │   │   └── generate-campaign-poster/
+│   │   │       └── route.ts         # Campaign poster generation API endpoint
+│   │   ├── globals.css              # Global styles with Tailwind
+│   │   ├── layout.tsx               # Root layout component
+│   │   └── page.tsx                 # Home page with avatar and poster generation
+│   ├── components/
+│   │   └── america-map.tsx          # Interactive map component
+│   ├── constants/
+│   │   └── campaign.ts              # Campaign styles and city data
+│   └── types/
+│       └── index.ts                 # TypeScript type definitions
+├── tailwind.config.js               # Tailwind configuration
 ├── package.json
 └── README.md
 ```
+
+## Campaign Poster Features
+
+### Campaign Styles
+Choose from six different campaign poster styles:
+- **Communist**: Red and gold theme with socialist imagery
+- **Republican**: Conservative blue theme with patriotic imagery
+- **Liberal**: Progressive theme with inclusive messaging
+- **Anime**: Japanese anime style with vibrant colors
+- **Vintage**: Retro 1950s American campaign style
+- **Cyberpunk**: Futuristic neon theme with tech elements
+
+### City-Specific Campaigns
+Each major city has unique campaign elements:
+- **New York**: "The City That Never Sleeps" - housing, transportation, diversity
+- **Los Angeles**: "City of Angels" - homelessness, traffic, entertainment industry
+- **Chicago**: "The Windy City" - public safety, education, architecture
+- **Houston**: "Space City" - flooding, energy transition, NASA
+- **Phoenix**: "Valley of the Sun" - water scarcity, desert culture, solar energy
+
+### How It Works
+1. **Describe Yourself**: Enter a detailed description of yourself
+2. **Choose Style**: Select your preferred campaign poster style
+3. **Select City**: Click on a city from the interactive map
+4. **Generate Poster**: Create your personalized campaign poster
 
 ## Map Features
 
@@ -77,6 +121,7 @@ be-the-mayor/
 - Selected cities show with green color and pulsing animation
 - Unselected cities appear as red dots
 - Hover effects provide visual feedback
+- Selected cities are used for campaign poster generation
 
 ### Region Filtering
 - Filter cities by geographic regions:
@@ -92,19 +137,38 @@ be-the-mayor/
 
 ## Customization
 
-### Adding New Cities
-Edit `src/components/map-data.ts` to add new cities:
+### Adding New Campaign Styles
+Edit `src/constants/campaign.ts` to add new campaign styles:
 
 ```typescript
 {
-  id: 'city-name',
-  name: 'City Name',
-  state: 'State',
-  population: 1000000,
-  coordinates: [x, y], // SVG coordinates
-  region: 'Northeast' // or 'South', 'Midwest', 'West'
+  id: 'style-name',
+  name: 'Style Name',
+  description: 'Style description',
+  promptTemplate: 'Create a {style} campaign poster featuring {description}...',
+  colorScheme: 'blue-600'
 }
 ```
+
+### Adding New Cities
+Edit `src/constants/campaign.ts` to add new cities with campaign data:
+
+```typescript
+'City Name': {
+  cityName: 'City Name',
+  state: 'State',
+  slogan: 'City Slogan',
+  localIssues: ['issue1', 'issue2'],
+  culturalElements: ['element1', 'element2']
+}
+```
+
+### Customizing Prompts
+Modify the `promptTemplate` in campaign styles to customize how posters are generated. Use placeholders like:
+- `{description}` - User's self-description
+- `{city}` - Selected city name
+- `{state}` - City's state
+- `{slogan}` - City's campaign slogan
 
 ### Styling
 The application uses Tailwind CSS with custom configurations in `tailwind.config.js`. You can:

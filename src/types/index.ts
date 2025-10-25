@@ -1,0 +1,129 @@
+// Replicate API Types
+export interface ReplicatePrediction {
+  id: string;
+  status: 'starting' | 'processing' | 'succeeded' | 'failed' | 'canceled';
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  input: ReplicateInput;
+  output?: string | string[];
+  error?: string;
+  logs?: string;
+  metrics?: {
+    image_count: number;
+    predict_time: number;
+    total_time: number;
+  };
+  urls: {
+    stream: string;
+    get: string;
+    cancel: string;
+  };
+  version: string;
+}
+
+export interface ReplicateInput {
+  prompt: string;
+  input_image: string;
+  aspect_ratio: 'match_input_image' | '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+  output_format: 'jpg' | 'png' | 'webp';
+  safety_tolerance: number;
+  prompt_upsampling?: boolean;
+}
+
+// Avatar Generation Types
+export interface AvatarGenerationRequest {
+  description: string;
+}
+
+export interface AvatarGenerationResponse {
+  imageUrl?: string;
+  error?: string;
+}
+
+// Campaign Poster Types
+export interface CampaignPosterRequest {
+  description: string;
+  selectedCity: string;
+  campaignStyle: string;
+}
+
+export interface CampaignPosterResponse {
+  imageUrl?: string;
+  error?: string;
+}
+
+// Seedance API Types
+export interface SeedancePrediction {
+  id: string;
+  status: 'starting' | 'processing' | 'succeeded' | 'failed' | 'canceled';
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  input: SeedanceInput;
+  output?: string;
+  error?: string;
+  logs?: string;
+  metrics?: {
+    predict_time: number;
+    total_time: number;
+  };
+  urls: {
+    stream: string;
+    get: string;
+    cancel: string;
+  };
+  version: string;
+}
+
+export interface SeedanceInput {
+  fps?: number;
+  prompt: string;
+  duration?: number;
+  resolution?: '480p' | '720p';
+  aspect_ratio?: '16:9' | '9:16' | '1:1';
+  camera_fixed?: boolean;
+  seed?: number;
+  image?: string;
+  last_frame_image?: string;
+  reference_images?: string[];
+}
+
+// Campaign Video Types
+export interface CampaignVideoRequest {
+  description: string;
+  selectedCity: string;
+  campaignStyle: string;
+  videoSettings?: {
+    fps?: number;
+    duration?: number;
+    resolution?: '480p' | '720p';
+    aspect_ratio?: '16:9' | '9:16' | '1:1';
+    camera_fixed?: boolean;
+    seed?: number;
+    image?: string;
+    last_frame_image?: string;
+    reference_images?: string[];
+  };
+}
+
+export interface CampaignVideoResponse {
+  videoUrl?: string;
+  error?: string;
+}
+
+// City Types (for the map)
+export interface City {
+  id: string;
+  name: string;
+  state: string;
+  x: number;
+  y: number;
+  population: string;
+  region: 'Northeast' | 'South' | 'Midwest' | 'West';
+}
+
+export interface MapData {
+  cities: City[];
+  usaOutline: string;
+}

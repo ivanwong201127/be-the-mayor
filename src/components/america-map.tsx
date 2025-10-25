@@ -1,16 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-
-interface City {
-  id: string;
-  name: string;
-  state: string;
-  x: number;
-  y: number;
-  population: string;
-  region: string;
-}
+import { City } from '@/types';
 
 const majorCities: City[] = [
   { id: 'nyc', name: 'New York', state: 'NY', x: 40.7, y: -74.0, population: '8.3M', region: 'Northeast' },
@@ -52,17 +43,31 @@ const regionColors = {
   'West': 'bg-purple-100 text-purple-800 border-purple-200',
 };
 
-export function AmericaMap() {
+interface AmericaMapProps {
+  onCitySelect?: (cityName: string) => void;
+}
+
+export function AmericaMap({ onCitySelect }: AmericaMapProps = {}) {
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [hoveredCity, setHoveredCity] = useState<string | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
 
   const handleCityClick = (cityId: string) => {
-    setSelectedCities(prev => 
-      prev.includes(cityId) 
+    const city = majorCities.find(c => c.id === cityId);
+    if (!city) return;
+
+    setSelectedCities(prev => {
+      const newSelection = prev.includes(cityId) 
         ? prev.filter(id => id !== cityId)
-        : [...prev, cityId]
-    );
+        : [...prev, cityId];
+      
+      // Call the callback with the city name if provided
+      if (onCitySelect && newSelection.includes(cityId)) {
+        onCitySelect(city.name);
+      }
+      
+      return newSelection;
+    });
   };
 
   const getCityColor = (cityId: string) => {
