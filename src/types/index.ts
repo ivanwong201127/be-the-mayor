@@ -160,6 +160,72 @@ export interface VideoChunk {
   endTime: number;
 }
 
+// Music Generation API Types (MusicGen)
+export interface MusicGenInput {
+  model_version?: string;
+  prompt?: string;
+  input_audio?: string;
+  duration?: number;
+  continuation?: boolean;
+  continuation_start?: number;
+  continuation_end?: number;
+  multi_band_diffusion?: boolean;
+  normalization_strategy?: string;
+  top_k?: number;
+  top_p?: number;
+  temperature?: number;
+  classifier_free_guidance?: number;
+  output_format?: string;
+  seed?: number;
+}
+
+export interface MusicGenPrediction {
+  id: string;
+  status: 'starting' | 'processing' | 'succeeded' | 'failed' | 'canceled';
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  input: MusicGenInput;
+  output?: string; // Audio URL
+  error?: string;
+  logs?: string;
+  metrics?: {
+    predict_time: number;
+    total_time: number;
+  };
+  urls: {
+    get: string;
+    cancel: string;
+  };
+  version: string;
+}
+
+// Music Generation Request/Response
+export interface MusicGenerationRequest {
+  prompt: string;
+  duration?: number;
+  inputAudio?: string | null;
+  modelVersion?: string;
+  outputFormat?: 'wav' | 'mp3';
+}
+
+export interface MusicGenerationResponse {
+  audioUrl?: string;
+  error?: string;
+}
+
+// Video Composition Types
+export interface VideoCompositionRequest {
+  backgroundVideo: File;
+  characterImage: string; // URL to character image
+  musicUrl?: string; // Optional background music
+}
+
+export interface VideoCompositionResponse {
+  videoUrl?: string;
+  error?: string;
+}
+
 // City Types (for the map)
 export interface City {
   id: string;

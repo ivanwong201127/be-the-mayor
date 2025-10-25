@@ -9,8 +9,8 @@ export const VIDEO_CAPTIONING_CONFIG = {
   // Video chunk duration in seconds
   CHUNK_DURATION: 5,
   
-  // Supported video formats
-  SUPPORTED_FORMATS: ['video/mp4', 'video/webm', 'video/ogg'],
+  // Supported video formats (including mobile formats)
+  SUPPORTED_FORMATS: ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo'],
   
   // Maximum file size (50MB)
   MAX_FILE_SIZE: 50 * 1024 * 1024,
