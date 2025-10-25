@@ -48,7 +48,7 @@ interface AmericaMapProps {
 }
 
 export function AmericaMap({ onCitySelect }: AmericaMapProps = {}) {
-  const [selectedCities, setSelectedCities] = useState<string[]>([]);
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [hoveredCity, setHoveredCity] = useState<string | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
 
@@ -56,36 +56,36 @@ export function AmericaMap({ onCitySelect }: AmericaMapProps = {}) {
     const city = majorCities.find(c => c.id === cityId);
     if (!city) return;
 
-    setSelectedCities(prev => {
-      const newSelection = prev.includes(cityId) 
-        ? prev.filter(id => id !== cityId)
-        : [...prev, cityId];
-      
-      // Call the callback with the city name if provided
-      if (onCitySelect && newSelection.includes(cityId)) {
+    // Single city selection - toggle if same city, otherwise select new city
+    if (selectedCity === cityId) {
+      setSelectedCity(null);
+      if (onCitySelect) {
+        onCitySelect('');
+      }
+    } else {
+      setSelectedCity(cityId);
+      if (onCitySelect) {
         onCitySelect(city.name);
       }
-      
-      return newSelection;
-    });
+    }
   };
 
   const getCityColor = (cityId: string) => {
-    if (selectedCities.includes(cityId)) return 'fill-emerald-500';
+    if (selectedCity === cityId) return 'fill-emerald-500';
     if (hoveredCity === cityId) return 'fill-red-600';
     return 'fill-red-500';
   };
 
-  const selectedCitiesData = majorCities.filter(city => selectedCities.includes(city.id));
+  const selectedCityData = selectedCity ? majorCities.find(city => city.id === selectedCity) : null;
   const filteredCities = selectedRegion 
     ? majorCities.filter(city => city.region === selectedRegion)
     : majorCities;
 
-  // Convert lat/lng to SVG coordinates with better USA bounds
+  // Convert lat/lng to SVG coordinates with accurate USA bounds
   const latLngToSvg = (lat: number, lng: number) => {
-    // USA bounds: roughly 24-49 N, 66-125 W
-    const x = ((lng + 125) / 59) * 380 + 10; // Convert longitude to x (10-390)
-    const y = ((49 - lat) / 25) * 230 + 10; // Convert latitude to y (10-240)
+    // USA bounds: roughly 24.5-49 N, 66.9-125 W
+    const x = ((lng + 125) / 58.1) * 380 + 10; // Convert longitude to x (10-390)
+    const y = ((49 - lat) / 24.5) * 230 + 10; // Convert latitude to y (10-240)
     return { x: Math.max(10, Math.min(390, x)), y: Math.max(10, Math.min(240, y)) };
   };
 
@@ -100,24 +100,24 @@ export function AmericaMap({ onCitySelect }: AmericaMapProps = {}) {
   const regionStats = getRegionStats();
 
   return (
-    <div className="w-full max-w-7xl mx-auto">
-      <div className="bg-white rounded-2xl shadow-2xl p-8">
-        <div className="mb-8">
-          <h2 className="text-4xl font-bold text-gray-900 mb-3 flex items-center">
-            <span className="mr-3">🗺️</span>
-            Explore Major Cities Across America
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 lg:p-8">
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 sm:mb-3 flex items-center">
+            <span className="mr-2 sm:mr-3">🗺️</span>
+            <span className="break-words">Explore Major Cities Across America</span>
           </h2>
-          <p className="text-gray-600 text-lg">
+          <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
             Click on any city to select it. Use the region filter to focus on specific areas.
           </p>
         </div>
 
         {/* Region Filter */}
-        <div className="mb-6">
-          <div className="flex flex-wrap gap-3">
+        <div className="mb-4 sm:mb-6">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             <button
               onClick={() => setSelectedRegion(null)}
-              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-all text-sm sm:text-base ${
                 selectedRegion === null 
                   ? 'bg-gray-800 text-white shadow-lg' 
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -129,57 +129,58 @@ export function AmericaMap({ onCitySelect }: AmericaMapProps = {}) {
               <button
                 key={region}
                 onClick={() => setSelectedRegion(region)}
-                className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                className={`px-3 sm:px-4 py-2 rounded-lg font-medium transition-all text-sm sm:text-base ${
                   selectedRegion === region 
                     ? 'bg-gray-800 text-white shadow-lg' 
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                {region} ({regionStats[region]})
+                <span className="hidden sm:inline">{region} ({regionStats[region]})</span>
+                <span className="sm:hidden">{region}</span>
               </button>
             ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
           {/* Map */}
-          <div className="xl:col-span-3">
-            <div className="bg-linear-to-br from-blue-50 via-blue-100 to-indigo-100 rounded-2xl p-6 h-[600px] shadow-inner">
+          <div className="lg:col-span-3 order-1">
+            <div className="bg-linear-to-br from-blue-50 via-blue-100 to-indigo-100 rounded-2xl p-3 sm:p-4 lg:p-6 h-[400px] sm:h-[500px] lg:h-[600px] shadow-inner">
               <svg
                 className="w-full h-full"
                 viewBox="0 0 400 250"
                 preserveAspectRatio="xMidYMid meet"
               >
-                {/* More detailed USA outline */}
+                {/* Simplified but more accurate USA outline */}
                 <path
-                  d="M20 30 L380 30 L380 220 L360 220 L360 200 L340 200 L340 220 L320 220 L320 200 L300 200 L300 220 L280 220 L280 200 L260 200 L260 220 L240 220 L240 200 L220 200 L220 220 L200 220 L200 200 L180 200 L180 220 L160 220 L160 200 L140 200 L140 220 L120 220 L120 200 L100 200 L100 220 L80 220 L80 200 L60 200 L60 220 L40 220 L40 200 L20 200 Z"
-                  fill="var(--color-map-land)"
-                  stroke="#6b7280"
-                  strokeWidth="1.5"
-                  className="drop-shadow-md"
+                  d="M15 40 L385 40 L385 210 L375 210 L375 200 L365 200 L365 210 L355 210 L355 200 L345 200 L345 210 L335 210 L335 200 L325 200 L325 210 L315 210 L315 200 L305 200 L305 210 L295 210 L295 200 L285 200 L285 210 L275 210 L275 200 L265 200 L265 210 L255 210 L255 200 L245 200 L245 210 L235 210 L235 200 L225 200 L225 210 L215 210 L215 200 L205 200 L205 210 L195 210 L195 200 L185 200 L185 210 L175 210 L175 200 L165 200 L165 210 L155 210 L155 200 L145 200 L145 210 L135 210 L135 200 L125 200 L125 210 L115 210 L115 200 L105 200 L105 210 L95 210 L95 200 L85 200 L85 210 L75 210 L75 200 L65 200 L65 210 L55 210 L55 200 L45 200 L45 210 L35 210 L35 200 L25 200 L25 210 L15 210 Z"
+                  fill="#e5f3ff"
+                  stroke="#3b82f6"
+                  strokeWidth="2"
+                  className="drop-shadow-sm"
                 />
                 
-                {/* Additional landmass for better USA shape */}
+                {/* Continental USA shape approximation */}
                 <path
-                  d="M20 30 L40 30 L40 50 L60 50 L60 30 L80 30 L80 50 L100 50 L100 30 L120 30 L120 50 L140 50 L140 30 L160 30 L160 50 L180 50 L180 30 L200 30 L200 50 L220 50 L220 30 L240 30 L240 50 L260 50 L260 30 L280 30 L280 50 L300 50 L300 30 L320 30 L320 50 L340 50 L340 30 L360 30 L360 50 L380 50 L380 30 Z"
-                  fill="var(--color-map-land)"
-                  stroke="#6b7280"
+                  d="M25 45 L375 45 L375 55 L365 55 L365 65 L355 65 L355 75 L345 75 L345 85 L335 85 L335 95 L325 95 L325 105 L315 105 L315 115 L305 115 L305 125 L295 125 L295 135 L285 135 L285 145 L275 145 L275 155 L265 155 L265 165 L255 165 L255 175 L245 175 L245 185 L235 185 L235 195 L225 195 L225 185 L215 185 L215 175 L205 175 L205 165 L195 165 L195 155 L185 155 L185 145 L175 145 L175 135 L165 135 L165 125 L155 125 L155 115 L145 115 L145 105 L135 105 L135 95 L125 95 L125 85 L115 85 L115 75 L105 75 L105 65 L95 65 L95 55 L85 55 L85 45 L25 45 Z"
+                  fill="#f0f9ff"
+                  stroke="#1d4ed8"
                   strokeWidth="1.5"
                 />
                 
                 {/* Cities */}
                 {filteredCities.map((city) => {
                   const { x, y } = latLngToSvg(city.x, city.y);
-                  const isSelected = selectedCities.includes(city.id);
+                  const isSelected = selectedCity === city.id;
                   const isHovered = hoveredCity === city.id;
                   
                   return (
                     <g key={city.id}>
-                      {/* City dot with enhanced effects */}
+                      {/* City dot with fixed size - no movement on selection */}
                       <circle
                         cx={x}
                         cy={y}
-                        r={isSelected ? "5" : "3"}
+                        r="4"
                         className={`city-dot ${getCityColor(city.id)} ${
                           isSelected ? 'city-selected' : ''
                         }`}
@@ -189,16 +190,17 @@ export function AmericaMap({ onCitySelect }: AmericaMapProps = {}) {
                         style={{
                           filter: isHovered ? 'drop-shadow(0 0 12px rgba(239, 68, 68, 0.8))' : 
                                   isSelected ? 'drop-shadow(0 0 10px rgba(16, 185, 129, 0.8))' : 
-                                  'drop-shadow(0 3px 6px rgba(0, 0, 0, 0.2))'
+                                  'drop-shadow(0 3px 6px rgba(0, 0, 0, 0.2))',
+                          cursor: 'pointer'
                         }}
                       />
                       
-                      {/* City label with better positioning */}
+                      {/* City label with responsive positioning */}
                       <text
                         x={x + 8}
                         y={y - 8}
                         className="city-label fill-gray-800 font-semibold"
-                        style={{ fontSize: '11px' }}
+                        style={{ fontSize: '9px' }}
                       >
                         {city.name}
                       </text>
@@ -209,72 +211,65 @@ export function AmericaMap({ onCitySelect }: AmericaMapProps = {}) {
             </div>
           </div>
 
-          {/* Selected Cities Panel */}
-          <div className="space-y-6">
-            <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-2xl p-6 shadow-lg">
-              <h3 className="text-xl font-bold text-blue-900 mb-4 flex items-center">
+          {/* Selected City Panel */}
+          <div className="space-y-4 sm:space-y-6 order-2 lg:order-2">
+            <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-2xl p-4 sm:p-6 shadow-lg">
+              <h3 className="text-lg sm:text-xl font-bold text-blue-900 mb-3 sm:mb-4 flex items-center">
                 <span className="mr-2">📍</span>
-                Selected Cities ({selectedCities.length})
+                Selected City
               </h3>
-              {selectedCitiesData.length > 0 ? (
-                <div className="space-y-3 max-h-80 overflow-y-auto">
-                  {selectedCitiesData.map((city) => (
-                    <div
-                      key={city.id}
-                      className="bg-white rounded-xl p-4 shadow-md border border-blue-200 hover:shadow-lg transition-all duration-200"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-semibold text-gray-900">{city.name}</h4>
-                          <p className="text-sm text-gray-600">{city.state}</p>
-                          <p className="text-xs text-gray-500">Population: {city.population}</p>
-                          <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${regionColors[city.region as keyof typeof regionColors]}`}>
-                            {city.region}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleCityClick(city.id)}
-                          className="text-red-500 hover:text-red-700 text-lg font-bold transition-colors hover:scale-110"
-                        >
-                          ✕
-                        </button>
-                      </div>
+              {selectedCityData ? (
+                <div className="bg-white rounded-xl p-3 sm:p-4 shadow-md border border-blue-200 hover:shadow-lg transition-all duration-200">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{selectedCityData.name}</h4>
+                      <p className="text-xs sm:text-sm text-gray-600">{selectedCityData.state}</p>
+                      <p className="text-xs text-gray-500">Population: {selectedCityData.population}</p>
+                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${regionColors[selectedCityData.region as keyof typeof regionColors]}`}>
+                        {selectedCityData.region}
+                      </span>
                     </div>
-                  ))}
+                    <button
+                      onClick={() => handleCityClick(selectedCityData.id)}
+                      className="text-red-500 hover:text-red-700 text-lg font-bold transition-colors hover:scale-110 ml-2 flex-shrink-0"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <div className="text-5xl mb-3">🗺️</div>
-                  <p className="text-blue-700 text-sm font-medium">No cities selected yet</p>
-                  <p className="text-blue-600 text-xs mt-1">Click on the map to start exploring!</p>
+                <div className="text-center py-6 sm:py-8">
+                  <div className="text-4xl sm:text-5xl mb-2 sm:mb-3">🗺️</div>
+                  <p className="text-blue-700 text-xs sm:text-sm font-medium">No city selected</p>
+                  <p className="text-blue-600 text-xs mt-1">Click on the map to select a city!</p>
                 </div>
               )}
             </div>
 
             {/* Quick Stats */}
-            <div className="bg-linear-to-br from-emerald-50 to-emerald-100 rounded-2xl p-6 shadow-lg">
-              <h3 className="text-xl font-bold text-emerald-900 mb-4 flex items-center">
+            <div className="bg-linear-to-br from-emerald-50 to-emerald-100 rounded-2xl p-4 sm:p-6 shadow-lg">
+              <h3 className="text-lg sm:text-xl font-bold text-emerald-900 mb-3 sm:mb-4 flex items-center">
                 <span className="mr-2">📊</span>
                 Quick Stats
               </h3>
-              <div className="space-y-3 text-sm text-emerald-800">
+              <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm text-emerald-800">
                 <div className="flex justify-between items-center">
                   <span>Total Cities:</span>
-                  <span className="font-bold text-lg">{majorCities.length}</span>
+                  <span className="font-bold text-base sm:text-lg">{majorCities.length}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span>Selected:</span>
-                  <span className="font-bold text-lg text-emerald-600">{selectedCities.length}</span>
+                  <span className="font-bold text-base sm:text-lg text-emerald-600">{selectedCity ? '1' : '0'}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span>Remaining:</span>
-                  <span className="font-bold text-lg">{majorCities.length - selectedCities.length}</span>
+                  <span>Available:</span>
+                  <span className="font-bold text-base sm:text-lg">{majorCities.length - (selectedCity ? 1 : 0)}</span>
                 </div>
                 {selectedRegion && (
                   <div className="pt-2 border-t border-emerald-200">
                     <div className="flex justify-between items-center">
                       <span>Filtered:</span>
-                      <span className="font-bold text-lg">{filteredCities.length}</span>
+                      <span className="font-bold text-base sm:text-lg">{filteredCities.length}</span>
                     </div>
                   </div>
                 )}
@@ -282,19 +277,13 @@ export function AmericaMap({ onCitySelect }: AmericaMapProps = {}) {
             </div>
 
             {/* Actions */}
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               <button
-                onClick={() => setSelectedCities([])}
-                className="w-full bg-gray-500 text-white py-3 px-4 rounded-xl hover:bg-gray-600 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
-                disabled={selectedCities.length === 0}
+                onClick={() => setSelectedCity(null)}
+                className="w-full bg-gray-500 text-white py-2 sm:py-3 px-3 sm:px-4 rounded-xl hover:bg-gray-600 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg text-sm sm:text-base"
+                disabled={!selectedCity}
               >
-                🗑️ Clear All
-              </button>
-              <button
-                onClick={() => setSelectedCities(majorCities.map(city => city.id))}
-                className="w-full bg-blue-500 text-white py-3 px-4 rounded-xl hover:bg-blue-600 transition-all duration-200 font-medium shadow-md hover:shadow-lg"
-              >
-                ✅ Select All
+                🗑️ Clear Selection
               </button>
             </div>
           </div>
