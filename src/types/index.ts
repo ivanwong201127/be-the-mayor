@@ -112,6 +112,54 @@ export interface CampaignVideoResponse {
   error?: string;
 }
 
+// Qwen2-VL API Types
+export interface Qwen2VLInput {
+  media: string;
+  prompt?: string;
+  max_new_tokens?: number;
+}
+
+export interface Qwen2VLPrediction {
+  id: string;
+  status: 'starting' | 'processing' | 'succeeded' | 'failed' | 'canceled';
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  input: Qwen2VLInput;
+  output?: string;
+  error?: string;
+  logs?: string;
+  metrics?: {
+    predict_time: number;
+    total_time: number;
+  };
+  urls: {
+    get: string;
+    cancel: string;
+  };
+  version: string;
+}
+
+// Video Captioning Types
+export interface VideoCaptioningRequest {
+  videoFile: File;
+  prompt?: string;
+  maxNewTokens?: number;
+}
+
+export interface VideoCaptioningResponse {
+  caption?: string;
+  error?: string;
+}
+
+// Video Chunking Types
+export interface VideoChunk {
+  blob: Blob;
+  url: string;
+  startTime: number;
+  endTime: number;
+}
+
 // City Types (for the map)
 export interface City {
   id: string;
