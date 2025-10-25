@@ -1,131 +1,237 @@
-'use client';
+"use client";
 
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { VideoCaptioningResponse, MusicGenerationResponse, VideoGenerationResponse, ImageGenerationResponse } from '@/types';
-import { VIDEO_CAPTIONING_CONFIG, VIDEO_UTILS } from '@/constants/video-captioning';
-import Link from 'next/link';
+import { useState, useRef, useCallback, useEffect } from "react";
+import {
+  VIDEO_CAPTIONING_CONFIG,
+  VIDEO_UTILS,
+} from "@/constants/video-captioning";
+import Link from "next/link";
+import Image from "next/image";
 
 export default function Home() {
-  const [isRecording, setIsRecording] = useState(false);
   const [recordedVideo, setRecordedVideo] = useState<string | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
   const [caption, setCaption] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Desktop recording states
+  const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  
-  // New states for character and music generation
-  const [blueCharacter, setBlueCharacter] = useState<string | null>(null);
-  const [isGeneratingCharacter, setIsGeneratingCharacter] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  // States for unified flow
   const [generatedMusic, setGeneratedMusic] = useState<string | null>(null);
-  const [isGeneratingMusic, setIsGeneratingMusic] = useState(false);
-  const [composedVideo, setComposedVideo] = useState<string | null>(null);
-  const [isComposingVideo, setIsComposingVideo] = useState(false);
-  const [rapLyrics, setRapLyrics] = useState<string>('Yo, I\'m the mayor of this city, blue and bold, Making changes that never get old, From the streets to the sky, I reach for the stars, Building bridges, breaking down bars');
-  const [isMobile, setIsMobile] = useState(false);
-  const [selectedCharacter, setSelectedCharacter] = useState<string>('blue');
-  
+  const [rapLyrics, setRapLyrics] = useState<string>("");
+  const [selectedCharacter, setSelectedCharacter] = useState<string>("blue");
+  const [characterImageUrl, setCharacterImageUrl] = useState<string | null>(null);
+  const [cachedRecordedVideo, setCachedRecordedVideo] = useState<string | null>(null);
+
   // New states for unified flow
   const [isProcessingFlow, setIsProcessingFlow] = useState(false);
-  const [currentStep, setCurrentStep] = useState<string>('');
+  const [currentStep, setCurrentStep] = useState<string>("");
   const [progress, setProgress] = useState(0);
-  const [streamingLyrics, setStreamingLyrics] = useState<string>('');
+  const [streamingLyrics, setStreamingLyrics] = useState<string>("");
   const [isStreamingLyrics, setIsStreamingLyrics] = useState(false);
   const [finalVideo, setFinalVideo] = useState<string | null>(null);
-  
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
 
-  // Detect mobile device on mount and resize
+  // Detect desktop device
   useEffect(() => {
-    const checkIsMobile = () => {
-      setIsMobile(window.innerWidth < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+    const checkIsDesktop = () => {
+      setIsDesktop(
+        window.innerWidth >= 768 &&
+          !/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+            navigator.userAgent
+          )
+      );
     };
-    
-    checkIsMobile();
-    window.addEventListener('resize', checkIsMobile);
-    
-    return () => window.removeEventListener('resize', checkIsMobile);
+
+    checkIsDesktop();
+    window.addEventListener("resize", checkIsDesktop);
+
+    return () => window.removeEventListener("resize", checkIsDesktop);
+  }, []);
+
+  // Camera initialization function
+  const initializeCamera = useCallback(async () => {
+    if (!isDesktop) return;
+
+    try {
+      console.log("Requesting camera access...");
+      setCameraLoading(true);
+      setCameraError(null);
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: { ideal: "user" },
+        },
+        audio: true,
+      });
+
+      console.log("Camera stream obtained:", stream);
+      setCameraStream(stream);
+      cameraStreamRef.current = stream;
+      setCameraError(null);
+      setCameraLoading(false);
+    } catch (error) {
+      console.error("Camera access error:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Unable to access camera. Please check permissions.";
+      setCameraError(errorMessage);
+      setCameraLoading(false);
+    }
+  }, [isDesktop]);
+
+  // Initialize camera on desktop
+  useEffect(() => {
+    if (isDesktop) {
+      initializeCamera();
+    }
+
+    // Cleanup camera stream on unmount
+    return () => {
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+        cameraStreamRef.current = null;
+      }
+    };
+  }, [isDesktop, initializeCamera]);
+
+  // Handle video element when camera stream changes
+  useEffect(() => {
+    if (cameraStream && videoRef.current) {
+      videoRef.current.srcObject = cameraStream;
+      videoRef.current.muted = true;
+      videoRef.current.playsInline = true;
+
+      const playVideo = async () => {
+        try {
+          await videoRef.current?.play();
+        } catch (error) {
+          console.error("Error playing video:", error);
+        }
+      };
+
+      if (videoRef.current.readyState >= 2) {
+        playVideo();
+      } else {
+        videoRef.current.onloadedmetadata = playVideo;
+      }
+    }
+  }, [cameraStream]);
+
+  // Load cached data on page load
+  useEffect(() => {
+    const loadCachedData = async () => {
+      try {
+        const response = await fetch("/api/cache");
+        if (response.ok) {
+          const data = await response.json();
+          const cache = data.cache;
+
+          // Load cached music and recorded video
+          Object.keys(cache).forEach((key) => {
+            if (key.startsWith("music-")) {
+              const entry = cache[key];
+              if (entry && entry.url) {
+                setGeneratedMusic(entry.url);
+                console.log("Loaded cached music:", entry.url);
+              }
+            }
+            
+            if (key.startsWith("recorded-video-")) {
+              const entry = cache[key];
+              if (entry && entry.url) {
+                setCachedRecordedVideo(entry.url);
+                // Also set as current recorded video so user doesn't need to re-record
+                setRecordedVideo(entry.url);
+                console.log("Loaded cached recorded video:", entry.url);
+              }
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Error loading cached data:", error);
+      }
+    };
+
+    loadCachedData();
   }, []);
 
   // Character options for generation
   const characterOptions = [
     {
-      id: 'blue',
-      name: 'Blue Character',
-      description: 'A blue humanoid character, futuristic and sleek, with glowing blue skin, metallic blue armor, and confident posture. The character should look like a mayor or leader, standing tall with arms crossed or pointing forward. Blue eyes, blue hair, wearing a blue suit or armor. Sci-fi style, high quality, detailed. At the end of the video, the character will give you a kiss. The video should be at least 15 seconds long.'
+      id: "blue",
+      name: "Blue Character",
+      description:
+        "A blue humanoid character, futuristic and sleek, with glowing blue skin, metallic blue armor, and confident posture. The character should look like a mayor or leader, standing tall with arms crossed or pointing forward. Blue eyes, blue hair, wearing a blue suit or armor. Sci-fi style, high quality, detailed. At the end of the video, the character will give you a kiss. The video should be at least 15 seconds long.",
     },
     {
-      id: 'bts-jungkook',
-      name: 'Jungkook (BTS)',
-      description: 'Jungkook from BTS, Korean pop star, handsome young man with dark hair, charismatic smile, wearing stylish modern outfit, confident pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, Jungkook will give you a kiss. The video should be at least 15 seconds long.'
+      id: "bts-jungkook",
+      name: "Jungkook (BTS)",
+      description:
+        "Jungkook from BTS, Korean pop star, handsome young man with dark hair, charismatic smile, wearing stylish modern outfit, confident pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, Jungkook will give you a kiss. The video should be at least 15 seconds long.",
     },
     {
-      id: 'bts-jimin',
-      name: 'Jimin (BTS)',
-      description: 'Jimin from BTS, Korean pop star, elegant and graceful young man with blonde hair, charming smile, wearing fashionable outfit, artistic pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, Jimin will give you a kiss. The video should be at least 15 seconds long.'
+      id: "bts-jimin",
+      name: "Jimin (BTS)",
+      description:
+        "Jimin from BTS, Korean pop star, elegant and graceful young man with blonde hair, charming smile, wearing fashionable outfit, artistic pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, Jimin will give you a kiss. The video should be at least 15 seconds long.",
     },
     {
-      id: 'bts-v',
-      name: 'V (BTS)',
-      description: 'V from BTS, Korean pop star, handsome young man with dark hair, mysterious and charismatic expression, wearing trendy outfit, cool pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, V will give you a kiss. The video should be at least 15 seconds long.'
+      id: "bts-v",
+      name: "V (BTS)",
+      description:
+        "V from BTS, Korean pop star, handsome young man with dark hair, mysterious and charismatic expression, wearing trendy outfit, cool pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, V will give you a kiss. The video should be at least 15 seconds long.",
     },
     {
-      id: 'blackpink-jennie',
-      name: 'Jennie (BLACKPINK)',
-      description: 'Jennie from BLACKPINK, Korean pop star, beautiful young woman with dark hair, confident and stylish expression, wearing fashionable outfit, elegant pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, Jennie will give you a kiss. The video should be at least 15 seconds long.'
+      id: "blackpink-jennie",
+      name: "Jennie (BLACKPINK)",
+      description:
+        "Jennie from BLACKPINK, Korean pop star, beautiful young woman with dark hair, confident and stylish expression, wearing fashionable outfit, elegant pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, Jennie will give you a kiss. The video should be at least 15 seconds long.",
     },
     {
-      id: 'blackpink-lisa',
-      name: 'Lisa (BLACKPINK)',
-      description: 'Lisa from BLACKPINK, Korean pop star, beautiful young woman with blonde hair, energetic and charismatic expression, wearing trendy outfit, dynamic pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, Lisa will give you a kiss. The video should be at least 15 seconds long.'
-    }
+      id: "blackpink-lisa",
+      name: "Lisa (BLACKPINK)",
+      description:
+        "Lisa from BLACKPINK, Korean pop star, beautiful young woman with blonde hair, energetic and charismatic expression, wearing trendy outfit, dynamic pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, Lisa will give you a kiss. The video should be at least 15 seconds long.",
+    },
   ];
 
   const startRecording = useCallback(async () => {
     try {
       setError(null);
-      
-      // Check if getUserMedia is supported
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setError('Camera access is not supported on this device');
+
+      if (!cameraStream) {
+        setError("Camera not available. Please refresh the page.");
         return;
       }
 
-      // Check if MediaRecorder is supported
       if (!window.MediaRecorder) {
-        setError('Video recording is not supported on this device');
+        setError("Video recording is not supported on this device");
         return;
       }
 
-      // Progressive constraints with fallback
-      const constraints = {
-        video: {
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 },
-          frameRate: { ideal: 30, max: 60 },
-          facingMode: { ideal: 'user' } // Front camera for mobile
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      };
+      const mimeTypes = [
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+        "video/mp4",
+      ];
+      let selectedMimeType = "";
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-
-      // Dynamic MIME type detection
-      const mimeTypes = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
-      let selectedMimeType = '';
-      
       for (const mimeType of mimeTypes) {
         if (MediaRecorder.isTypeSupported(mimeType)) {
           selectedMimeType = mimeType;
@@ -134,11 +240,11 @@ export default function Home() {
       }
 
       if (!selectedMimeType) {
-        throw new Error('No supported video format found');
+        throw new Error("No supported video format found");
       }
 
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: selectedMimeType
+      const mediaRecorder = new MediaRecorder(cameraStream, {
+        mimeType: selectedMimeType,
       });
 
       mediaRecorderRef.current = mediaRecorder;
@@ -150,123 +256,152 @@ export default function Home() {
         }
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         const blob = new Blob(chunksRef.current, { type: selectedMimeType });
         const videoUrl = URL.createObjectURL(blob);
         setRecordedVideo(videoUrl);
-        setVideoFile(new File([blob], 'recorded-video.webm', { type: selectedMimeType }));
+        
+        const file = new File([blob], "recorded-video.webm", { type: selectedMimeType });
+        setVideoFile(file);
         setError(null);
         setCaption(null);
-        
-        // Stop all tracks
-        stream.getTracks().forEach(track => track.stop());
+
+        // Save to cache
+        try {
+          const formData = new FormData();
+          formData.append('videoFile', file);
+          
+          const response = await fetch('/api/save-recorded-video', {
+            method: 'POST',
+            body: formData,
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            setCachedRecordedVideo(data.videoUrl);
+            console.log('Saved recorded video to cache:', data.videoUrl);
+          }
+        } catch (error) {
+          console.error('Failed to save recorded video to cache:', error);
+        }
       };
 
-      mediaRecorder.start(1000); // 1-second chunks for better mobile compatibility
+      mediaRecorder.start(1000);
       setIsRecording(true);
       setRecordingTime(0);
 
-      // Start timer
       timerRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
+        setRecordingTime((prev) => prev + 1);
       }, 1000);
-
     } catch (err) {
-      console.error('Recording error:', err);
-      let errorMessage = 'Failed to start recording. ';
-      
-      if (err instanceof Error) {
-        if (err.name === 'NotAllowedError') {
-          errorMessage += 'Camera permission denied. Please allow camera access and try again.';
-        } else if (err.name === 'NotFoundError') {
-          errorMessage += 'No camera found. Please check your camera connection.';
-        } else if (err.name === 'NotSupportedError') {
-          errorMessage += 'Camera not supported on this device.';
-        } else {
-          errorMessage += 'Please check camera permissions.';
+      console.error("Recording error:", err);
+      setError("Failed to start recording. Please check camera permissions.");
+    }
+  }, [cameraStream]);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  }, [isRecording]);
+
+  const handleFileUpload = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (file) {
+        const validation = VIDEO_UTILS.validateVideoFile(file);
+
+        if (!validation.isValid) {
+          setError(validation.error || "Invalid video file");
+          return;
+        }
+
+        setVideoFile(file);
+        setRecordedVideo(URL.createObjectURL(file));
+        setError(null);
+        setCaption(null);
+
+        // Save to cache
+        try {
+          const formData = new FormData();
+          formData.append('videoFile', file);
+          
+          const response = await fetch('/api/save-recorded-video', {
+            method: 'POST',
+            body: formData,
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            setCachedRecordedVideo(data.videoUrl);
+            console.log('Saved uploaded video to cache:', data.videoUrl);
+          }
+        } catch (error) {
+          console.error('Failed to save uploaded video to cache:', error);
         }
       }
-      
-      setError(errorMessage);
-    }
-  }, []);
-
-  // Unified function that handles recording on desktop and upload on mobile
-  const handleStartRecordingOrUpload = useCallback(() => {
-    if (isMobile) {
-      // On mobile, trigger file upload
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = 'video/*';
-      fileInput.onchange = (event) => {
-        const file = (event.target as HTMLInputElement).files?.[0];
-        if (file) {
-          const validation = {
-            isValid: true,
-            error: undefined
-          };
-          
-          if (!file.type.startsWith('video/')) {
-            setError('Invalid file type. Please upload a video file.');
-            return;
-          }
-
-          if (file.size > VIDEO_CAPTIONING_CONFIG.MAX_FILE_SIZE) {
-            setError(`File too large. Maximum size: ${VIDEO_CAPTIONING_CONFIG.MAX_FILE_SIZE / (1024 * 1024)}MB`);
-            return;
-          }
-
-          setVideoFile(file);
-          setRecordedVideo(URL.createObjectURL(file));
-          setError(null);
-          setCaption(null);
-        }
-      };
-      fileInput.click();
-    } else {
-      // On desktop, start recording
-      startRecording();
-    }
-  }, [isMobile, startRecording]);
+    },
+    []
+  );
 
   // Helper function to make API calls with retry logic
-  const makeApiCallWithRetry = async (url: string, options: RequestInit, maxRetries = 3): Promise<Response> => {
+  const makeApiCallWithRetry = async (
+    url: string,
+    options: RequestInit,
+    maxRetries = 3
+  ): Promise<Response> => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const response = await fetch(url, options);
-        
+
         if (response.status === 429) {
           // Rate limited - wait and retry
-          const retryAfter = response.headers.get('retry-after');
-          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
-          
+          const retryAfter = response.headers.get("retry-after");
+          const waitTime = retryAfter
+            ? parseInt(retryAfter) * 1000
+            : Math.pow(2, attempt) * 1000;
+
           if (attempt < maxRetries) {
-            console.log(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
-            await new Promise(resolve => setTimeout(resolve, waitTime));
+            console.log(
+              `Rate limited. Waiting ${waitTime}ms before retry ${
+                attempt + 1
+              }/${maxRetries}`
+            );
+            await new Promise((resolve) => setTimeout(resolve, waitTime));
             continue;
           }
         }
-        
+
         return response;
       } catch (error) {
         if (attempt === maxRetries) {
           throw error;
         }
-        
+
         // Exponential backoff for other errors
         const waitTime = Math.pow(2, attempt) * 1000;
-        console.log(`API call failed. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
+        console.log(
+          `API call failed. Waiting ${waitTime}ms before retry ${
+            attempt + 1
+          }/${maxRetries}`
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
       }
     }
-    
-    throw new Error('Max retries exceeded');
+
+    throw new Error("Max retries exceeded");
   };
 
   // Unified flow function
   const startUnifiedFlow = async () => {
     if (!videoFile) {
-      setError('Please record or upload a video first');
+      setError("Please record or upload a video first");
       return;
     }
 
@@ -276,62 +411,45 @@ export default function Home() {
     setFinalVideo(null);
 
     try {
-      // Step 1: Generate Character (20%)
-      setCurrentStep('Generating celebrity character...');
-      setProgress(20);
-      
-      const selectedChar = characterOptions.find(char => char.id === selectedCharacter);
-      if (!selectedChar) {
-        throw new Error('Please select a character');
-      }
+      // Step 1: Generate Rap Lyrics with streaming (25%)
+      setCurrentStep("Creating personalized rap lyrics...");
+      setProgress(25);
 
-      const characterResponse = await makeApiCallWithRetry('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          type: 'avatar',
-          description: selectedChar.description 
-        }),
-      });
-
-      if (!characterResponse.ok) {
-        throw new Error('Failed to generate character');
-      }
-
-      const characterData = await characterResponse.json();
-      if (characterData.error) {
-        throw new Error(characterData.error);
-      }
-
-      setBlueCharacter(characterData.imageUrl);
-
-      // Add delay to prevent rate limiting
-      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
-
-      // Step 2: Generate Rap Lyrics with streaming (40%)
-      setCurrentStep('Creating personalized rap lyrics...');
-      setProgress(40);
-      
       // Generate rap lyrics using AI
       setIsStreamingLyrics(true);
-      setStreamingLyrics('');
-      
-      const rapPrompt = `Create a personalized rap song for ${selectedChar.name.split(' ')[0]}, a ${selectedChar.name.includes('BTS') || selectedChar.name.includes('BLACKPINK') ? 'K-pop star' : 'celebrity character'}. The rap should be romantic and flirty, mentioning that they will give the listener a kiss at the end. Make it catchy, with rhymes and rhythm. Keep it to about 8 lines. The tone should be confident and charming.`;
+      setStreamingLyrics("");
 
-      const lyricsResponse = await makeApiCallWithRetry('/api/generate-text', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const selectedChar = characterOptions.find(
+        (char) => char.id === selectedCharacter
+      );
+      if (!selectedChar) {
+        throw new Error("Please select a character");
+      }
+
+      const rapPrompt = `Create a personalized rap song for ${
+        selectedChar.name.split(" ")[0]
+      }, a ${
+        selectedChar.name.includes("BTS") ||
+        selectedChar.name.includes("BLACKPINK")
+          ? "K-pop star"
+          : "celebrity character"
+      }. The rap should be romantic and flirty, mentioning that they will give the listener a kiss at the end. Make it catchy, with rhymes and rhythm. Keep it to about 8 lines. The tone should be confident and charming.`;
+
+      const lyricsResponse = await makeApiCallWithRetry("/api/generate-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: rapPrompt,
-          verbosity: 'medium',
-          reasoning_effort: 'minimal',
+          verbosity: "medium",
+          reasoning_effort: "minimal",
           max_completion_tokens: 500,
-          system_prompt: 'You are a talented rap songwriter. Create catchy, rhyming rap lyrics with a romantic and flirty tone. Focus on rhythm and flow. Keep responses concise and engaging.'
+          system_prompt:
+            "You are a talented rap songwriter. Create catchy, rhyming rap lyrics with a romantic and flirty tone. Focus on rhythm and flow. Keep responses concise and engaging.",
         }),
       });
 
       if (!lyricsResponse.ok) {
-        throw new Error('Failed to generate rap lyrics');
+        throw new Error("Failed to generate rap lyrics");
       }
 
       const lyricsData = await lyricsResponse.json();
@@ -340,99 +458,154 @@ export default function Home() {
       }
 
       // Simulate streaming by breaking the text into lines and displaying them progressively
-      const lines = lyricsData.text.split('\n').filter((line: string) => line.trim());
-      let currentLyrics = '';
-      
+      const lines = lyricsData.text
+        .split("\n")
+        .filter((line: string) => line.trim());
+      let currentLyrics = "";
+
+      console.log("Generated lyrics:", lyricsData.text);
+      console.log("Lyrics lines:", lines);
+
       for (let i = 0; i < lines.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, 600)); // 600ms delay between lines
-        currentLyrics += (currentLyrics ? '\n' : '') + lines[i];
+        await new Promise((resolve) => setTimeout(resolve, 600)); // 600ms delay between lines
+        currentLyrics += (currentLyrics ? "\n" : "") + lines[i];
         setStreamingLyrics(currentLyrics);
+        console.log("Streaming lyrics so far:", currentLyrics);
       }
 
       setIsStreamingLyrics(false);
       setRapLyrics(lyricsData.text);
+      console.log("Final lyrics set:", lyricsData.text);
 
       // Add delay to prevent rate limiting
-      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 second delay
 
-      // Step 3: Generate Music (60%)
-      setCurrentStep('Composing rap music...');
-      setProgress(60);
+      // Step 2: Generate Music (50%)
+      setCurrentStep("Composing rap music...");
+      setProgress(50);
 
-      const musicResponse = await makeApiCallWithRetry('/api/generate-music', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      let musicUrl = generatedMusic;
+
+      console.log(lyricsData.text);
+
+      if (!musicUrl) {
+        console.log("Generating music with lyrics:", lyricsData.text);
+
+        const musicResponse = await makeApiCallWithRetry(
+          "/api/generate-music",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              lyrics: lyricsData.text,
+              bitrate: 256000,
+              sample_rate: 44100,
+            }),
+          }
+        );
+
+        if (!musicResponse.ok) {
+          const errorText = await musicResponse.text();
+          console.error("Music generation failed:", errorText);
+          throw new Error("Failed to generate music");
+        }
+
+        const musicData = await musicResponse.json();
+        console.log("Music generation response:", musicData);
+
+        if (musicData.error) {
+          console.error("Music generation error:", musicData.error);
+          throw new Error(musicData.error);
+        }
+
+        musicUrl = musicData.audioUrl;
+        setGeneratedMusic(musicUrl);
+
+        if (musicData.cached) {
+          console.log("Used cached music:", musicUrl);
+        } else {
+          console.log("Generated new music:", musicUrl);
+        }
+      } else {
+        console.log("Using existing music:", musicUrl);
+      }
+
+      // Add delay to prevent rate limiting
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 second delay
+
+      // Step 3: Generate Character Image (75%)
+      setCurrentStep("Creating character image...");
+      setProgress(75);
+
+      const characterImageResponse = await fetch("/api/get-character-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: `Rap music with lyrics: ${lyricsData.text}. Hip hop beat, urban style, energetic rhythm`,
-          duration: 15, // 15 seconds as requested
-          modelVersion: 'stereo-large',
-          outputFormat: 'wav'
+          characterName: selectedChar.name,
+          characterDescription: selectedChar.description,
         }),
       });
 
-      if (!musicResponse.ok) {
-        throw new Error('Failed to generate music');
+      if (!characterImageResponse.ok) {
+        throw new Error("Failed to generate character image");
       }
 
-      const musicData = await musicResponse.json();
-      if (musicData.error) {
-        throw new Error(musicData.error);
+      const characterImageData = await characterImageResponse.json();
+      if (characterImageData.error) {
+        throw new Error(characterImageData.error);
       }
 
-      setGeneratedMusic(musicData.audioUrl);
+      setCharacterImageUrl(characterImageData.imageUrl);
 
-      // Add delay to prevent rate limiting
-      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+      // Step 4: Generate Omni-Human Video (90%)
+      setCurrentStep("Creating your celebrity invitation video...");
+      setProgress(90);
 
-      // Step 4: Compose Video (80%)
-      setCurrentStep('Composing final video with celebrity...');
-      setProgress(80);
-
-      const composeResponse = await fetch('/api/generate-video', {
-        method: 'POST',
+      const omniHumanResponse = await fetch("/api/generate-video", {
+        method: "POST",
         body: (() => {
           const formData = new FormData();
-          formData.append('type', 'compose');
-          formData.append('backgroundVideo', videoFile);
-          formData.append('characterImage', characterData.imageUrl);
-          if (musicData.audioUrl) {
-            formData.append('musicUrl', musicData.audioUrl);
-          }
+          if (musicUrl) formData.append("audio", musicUrl);
+          if (characterImageData.imageUrl)
+            formData.append("image", characterImageData.imageUrl);
           return formData;
         })(),
       });
 
-      if (!composeResponse.ok) {
-        throw new Error('Failed to compose video');
+      if (!omniHumanResponse.ok) {
+        throw new Error("Failed to generate omni-human video");
       }
 
-      const composeData = await composeResponse.json();
-      if (composeData.error) {
-        throw new Error(composeData.error);
+      const omniHumanData = await omniHumanResponse.json();
+      if (omniHumanData.error) {
+        throw new Error(omniHumanData.error);
       }
 
-      setComposedVideo(composeData.videoUrl);
+      setFinalVideo(omniHumanData.videoUrl);
 
       // Add delay to prevent rate limiting
-      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 second delay
 
-      // Step 5: Generate Caption (100%)
-      setCurrentStep('Adding final touches...');
+      // Step 4: Generate Caption (100%)
+      setCurrentStep("Adding final touches...");
       setProgress(100);
 
-      const captionResponse = await fetch('/api/caption-video', {
-        method: 'POST',
+      const captionResponse = await fetch("/api/caption-video", {
+        method: "POST",
         body: (() => {
           const formData = new FormData();
-          formData.append('videoFile', videoFile);
-          formData.append('prompt', VIDEO_CAPTIONING_CONFIG.DEFAULT_PROMPT);
-          formData.append('maxNewTokens', VIDEO_CAPTIONING_CONFIG.DEFAULT_MAX_TOKENS.toString());
+          formData.append("videoFile", videoFile);
+          formData.append("prompt", VIDEO_CAPTIONING_CONFIG.DEFAULT_PROMPT);
+          formData.append(
+            "maxNewTokens",
+            VIDEO_CAPTIONING_CONFIG.DEFAULT_MAX_TOKENS.toString()
+          );
           return formData;
         })(),
       });
 
       if (!captionResponse.ok) {
-        throw new Error('Failed to generate caption');
+        throw new Error("Failed to generate caption");
       }
 
       const captionData = await captionResponse.json();
@@ -441,114 +614,46 @@ export default function Home() {
       }
 
       setCaption(captionData.caption);
-      setFinalVideo(composeData.videoUrl);
-      setCurrentStep('Complete! Your celebrity video is ready!');
-
+      setCurrentStep("Complete! Your celebrity video is ready!");
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
-      console.error('Unified flow error:', err);
+      setError(err instanceof Error ? err.message : "Something went wrong");
+      console.error("Unified flow error:", err);
     } finally {
       setIsProcessingFlow(false);
     }
   };
 
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    }
-  }, [isRecording]);
-
-  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const validation = VIDEO_UTILS.validateVideoFile(file);
-      
-      if (!validation.isValid) {
-        setError(validation.error || 'Invalid video file');
-        return;
-      }
-
-      setVideoFile(file);
-      setRecordedVideo(URL.createObjectURL(file));
-      setError(null);
-      setCaption(null);
-    }
-  }, []);
-
-  const captionVideo = async () => {
-    if (!videoFile) {
-      setError('Please record or upload a video first');
-      return;
-    }
-
-    setIsProcessing(true);
-    setError(null);
-    setCaption(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('videoFile', videoFile);
-      formData.append('prompt', VIDEO_CAPTIONING_CONFIG.DEFAULT_PROMPT);
-      formData.append('maxNewTokens', VIDEO_CAPTIONING_CONFIG.DEFAULT_MAX_TOKENS.toString());
-
-      const response = await fetch('/api/caption-video', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate caption');
-      }
-
-      const data: VideoCaptioningResponse = await response.json();
-      
-      if (data.error) {
-        setError(data.error);
-      } else {
-        setCaption(data.caption || null);
-      }
-    } catch (err) {
-      setError('Failed to generate caption. Please try again.');
-      console.error('Caption generation error:', err);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-
-
-
   const resetAll = () => {
-    setIsRecording(false);
     setRecordedVideo(null);
     setVideoFile(null);
     setCaption(null);
     setError(null);
+    setIsRecording(false);
     setRecordingTime(0);
-    setBlueCharacter(null);
     setGeneratedMusic(null);
-    setComposedVideo(null);
     setFinalVideo(null);
-    setStreamingLyrics('');
+    setStreamingLyrics("");
     setIsStreamingLyrics(false);
     setProgress(0);
-    setCurrentStep('');
-    
+    setCurrentStep("");
+    setRapLyrics("");
+    setCharacterImageUrl(null);
+    setCachedRecordedVideo(null);
+
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    
+
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current = null;
     }
-    
+
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+    }
+
     chunksRef.current = [];
   };
 
@@ -561,18 +666,24 @@ export default function Home() {
             Invite Your Celebrity
           </h1>
           <p className="text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto">
-            Create a personalized video with your favorite K-pop star or blue character. 
-            They'll rap for you and give you a kiss at the end!
+            Create a personalized video with your favorite K-pop star or blue
+            character. They&apos;ll rap for you and give you a kiss at the end!
           </p>
-          
+
           {/* Navigation */}
-          <div className="mt-6">
-            <Link 
-              href="/campaign" 
+          <div className="mt-6 flex flex-col sm:flex-row gap-4 items-center justify-center">
+            <Link
+              href="/campaign"
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors"
             >
               🗳️ Campaign Mode
             </Link>
+            <button
+              onClick={resetAll}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+            >
+              🔄 Reset All Data
+            </button>
           </div>
         </div>
 
@@ -584,44 +695,160 @@ export default function Home() {
             </h2>
 
             <div className="space-y-6 sm:space-y-8">
-              {/* Video Recording Section */}
+              {/* Video Recording/Upload Section */}
               <div className="space-y-4">
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Step 1: Record Your Video</h3>
-                
-                {/* Recording Controls */}
-                <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
-                  {!isRecording ? (
-                    <button
-                      onClick={handleStartRecordingOrUpload}
-                      className="bg-red-600 text-white py-4 px-8 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center gap-3 text-lg touch-manipulation"
-                      style={{ minHeight: '48px', minWidth: '200px' }}
-                    >
-                      <span className="w-4 h-4 bg-white rounded-full"></span>
-                      Start Recording
-                    </button>
-                  ) : (
-                    <button
-                      onClick={stopRecording}
-                      className="bg-gray-600 text-white py-4 px-8 rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center gap-3 text-lg touch-manipulation"
-                      style={{ minHeight: '48px', minWidth: '200px' }}
-                    >
-                      <span className="w-4 h-4 bg-white rounded-full"></span>
-                      Stop Recording ({VIDEO_UTILS.formatTime(recordingTime)})
-                    </button>
-                  )}
-                </div>
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
+                  Step 1: Record or Upload Your Video
+                </h3>
+
+                {isDesktop ? (
+                  // Desktop Recording Interface
+                  <div className="space-y-4">
+                    {/* Camera Preview */}
+                    <div className="relative">
+                      {cameraLoading ? (
+                        <div className="bg-gray-100 rounded-lg p-8 text-center">
+                          <div className="text-gray-500 mb-2">📷</div>
+                          <p className="text-gray-600 mb-4">
+                            Initializing camera...
+                          </p>
+                          <div className="mt-4">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                          </div>
+                        </div>
+                      ) : cameraError ? (
+                        <div className="bg-gray-100 rounded-lg p-8 text-center">
+                          <div className="text-gray-500 mb-2">📷</div>
+                          <p className="text-gray-600 mb-4">{cameraError}</p>
+                          <button
+                            onClick={initializeCamera}
+                            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            Retry Camera Access
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative bg-gray-900 rounded-lg overflow-hidden">
+                          <video
+                            ref={videoRef}
+                            autoPlay
+                            muted
+                            playsInline
+                            className="w-full h-96 sm:h-80 object-cover"
+                            style={{
+                              transform: "scaleX(-1)", // Mirror effect
+                              backgroundColor: "#1f2937",
+                            }}
+                          />
+                          {isRecording && (
+                            <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full">
+                              <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                              <span className="text-sm font-medium">
+                                REC {VIDEO_UTILS.formatTime(recordingTime)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Recording Controls */}
+                    <div className="flex flex-col sm:flex-row gap-4 items-center justify-center">
+                      {!isRecording ? (
+                        <button
+                          onClick={startRecording}
+                          className="bg-red-600 text-white py-4 px-8 rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center gap-3 text-lg"
+                          style={{ minHeight: "48px", minWidth: "200px" }}
+                        >
+                          <span className="w-4 h-4 bg-white rounded-full"></span>
+                          Start Recording
+                        </button>
+                      ) : (
+                        <button
+                          onClick={stopRecording}
+                          className="bg-gray-600 text-white py-4 px-8 rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center gap-3 text-lg"
+                          style={{ minHeight: "48px", minWidth: "200px" }}
+                        >
+                          <span className="w-4 h-4 bg-white rounded-full"></span>
+                          Stop Recording (
+                          {VIDEO_UTILS.formatTime(recordingTime)})
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  // Mobile Upload Interface
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors">
+                    <div className="text-gray-500 mb-4">
+                      <svg
+                        className="mx-auto h-12 w-12"
+                        stroke="currentColor"
+                        fill="none"
+                        viewBox="0 0 48 48"
+                      >
+                        <path
+                          d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-lg font-medium text-gray-900">
+                        Upload a video file
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Supports MP4, WebM, MOV, and other video formats
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Maximum file size:{" "}
+                        {VIDEO_CAPTIONING_CONFIG.MAX_FILE_SIZE / (1024 * 1024)}
+                        MB
+                      </p>
+                    </div>
+                    <div className="mt-6">
+                      <label htmlFor="video-upload" className="cursor-pointer">
+                        <span className="bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors inline-flex items-center gap-2">
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                            />
+                          </svg>
+                          Choose Video File
+                        </span>
+                        <input
+                          id="video-upload"
+                          type="file"
+                          accept="video/*"
+                          onChange={handleFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
 
                 {/* Video Preview */}
                 {recordedVideo && (
                   <div className="mt-6">
-                    <h4 className="text-md font-medium text-gray-900 mb-3">Your Video</h4>
+                    <h4 className="text-md font-medium text-gray-900 mb-3">
+                      Your Video
+                    </h4>
                     <video
-                      ref={videoRef}
                       src={recordedVideo}
                       controls
                       playsInline
                       className="w-full max-w-2xl mx-auto rounded-lg shadow-lg"
-                      style={{ maxHeight: '400px' }}
+                      style={{ maxHeight: "400px" }}
                     />
                   </div>
                 )}
@@ -629,8 +856,10 @@ export default function Home() {
 
               {/* Character Selection */}
               <div className="space-y-4">
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Step 2: Choose Your Celebrity</h3>
-                
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
+                  Step 2: Choose Your Celebrity
+                </h3>
+
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {characterOptions.map((character) => (
                     <button
@@ -638,18 +867,25 @@ export default function Home() {
                       onClick={() => setSelectedCharacter(character.id)}
                       className={`p-3 rounded-lg border-2 transition-colors text-sm font-medium ${
                         selectedCharacter === character.id
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
                       }`}
                     >
                       <div className="text-center">
                         <div className="text-lg mb-1">
-                          {character.id === 'blue' ? '🔵' : 
-                           character.id.includes('jungkook') ? '🎤' :
-                           character.id.includes('jimin') ? '✨' :
-                           character.id.includes('v') ? '🎭' :
-                           character.id.includes('jennie') ? '💄' :
-                           character.id.includes('lisa') ? '💃' : '⭐'}
+                          {character.id === "blue"
+                            ? "🔵"
+                            : character.id.includes("jungkook")
+                            ? "🎤"
+                            : character.id.includes("jimin")
+                            ? "✨"
+                            : character.id.includes("v")
+                            ? "🎭"
+                            : character.id.includes("jennie")
+                            ? "💄"
+                            : character.id.includes("lisa")
+                            ? "💃"
+                            : "⭐"}
                         </div>
                         <div className="text-xs">{character.name}</div>
                       </div>
@@ -660,19 +896,37 @@ export default function Home() {
 
               {/* Unified Flow Button */}
               <div className="space-y-4">
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Step 3: Create Your Celebrity Video</h3>
-                
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
+                  Step 3: Create Your Celebrity Video
+                </h3>
+
                 <button
                   onClick={startUnifiedFlow}
                   disabled={!videoFile || isProcessingFlow}
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 text-white py-6 px-12 rounded-xl font-bold hover:from-purple-700 hover:to-pink-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center gap-4 text-xl touch-manipulation shadow-lg"
-                  style={{ minHeight: '60px', minWidth: '300px' }}
+                  className="bg-linear-to-r from-purple-600 to-pink-600 text-white py-6 px-12 rounded-xl font-bold hover:from-purple-700 hover:to-pink-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center gap-4 text-xl touch-manipulation shadow-lg"
+                  style={{ minHeight: "60px", minWidth: "300px" }}
                 >
                   {isProcessingFlow ? (
                     <>
-                      <svg className="animate-spin h-8 w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <svg
+                        className="animate-spin h-8 w-8"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
                       </svg>
                       Creating Magic...
                     </>
@@ -688,22 +942,40 @@ export default function Home() {
                 {isProcessingFlow && (
                   <div className="space-y-4">
                     <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div 
-                        className="bg-gradient-to-r from-purple-600 to-pink-600 h-3 rounded-full transition-all duration-500 ease-out"
+                      <div
+                        className="bg-linear-to-r from-purple-600 to-pink-600 h-3 rounded-full transition-all duration-500 ease-out"
                         style={{ width: `${progress}%` }}
                       ></div>
                     </div>
-                    <p className="text-center text-gray-600 font-medium">{currentStep}</p>
+                    <p className="text-center text-gray-600 font-medium">
+                      {currentStep}
+                    </p>
                   </div>
                 )}
 
                 {/* Streaming Lyrics */}
                 {isStreamingLyrics && (
                   <div className="bg-gray-50 rounded-lg p-4 border-2 border-dashed border-gray-300">
-                    <h4 className="text-md font-medium text-gray-900 mb-3 text-center">🎤 Creating Your Rap Lyrics...</h4>
+                    <h4 className="text-md font-medium text-gray-900 mb-3 text-center">
+                      🎤 Creating Your Rap Lyrics...
+                    </h4>
                     <div className="bg-black text-green-400 p-4 rounded-lg font-mono text-sm whitespace-pre-line min-h-[120px]">
                       {streamingLyrics}
-                      {isStreamingLyrics && <span className="animate-pulse">|</span>}
+                      {isStreamingLyrics && (
+                        <span className="animate-pulse">|</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Generated Lyrics Display */}
+                {rapLyrics && !isStreamingLyrics && (
+                  <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
+                    <h4 className="text-md font-medium text-blue-900 mb-3 text-center">
+                      🎤 Your Generated Rap Lyrics
+                    </h4>
+                    <div className="bg-white text-gray-800 p-4 rounded-lg font-medium whitespace-pre-line min-h-[100px] border">
+                      {rapLyrics}
                     </div>
                   </div>
                 )}
@@ -711,17 +983,21 @@ export default function Home() {
                 {/* Final Video */}
                 {finalVideo && (
                   <div className="mt-6">
-                    <h4 className="text-xl font-bold text-gray-900 mb-4 text-center">🎉 Your Celebrity Video is Ready!</h4>
+                    <h4 className="text-xl font-bold text-gray-900 mb-4 text-center">
+                      🎉 Your Celebrity Video is Ready!
+                    </h4>
                     <video
                       controls
                       src={finalVideo}
                       className="w-full max-w-2xl mx-auto rounded-lg shadow-lg"
-                      style={{ maxHeight: '500px' }}
+                      style={{ maxHeight: "500px" }}
                     >
                       Your browser does not support the video tag.
                     </video>
                     <div className="mt-4 text-center">
-                      <p className="text-gray-600 mb-2">Your celebrity will give you a kiss at the end! 💋</p>
+                      <p className="text-gray-600 mb-2">
+                        Your celebrity will give you a kiss at the end! 💋
+                      </p>
                       <button
                         onClick={resetAll}
                         className="bg-gray-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-gray-700 transition-colors"
@@ -737,13 +1013,24 @@ export default function Home() {
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    <div className="shrink-0">
+                      <svg
+                        className="h-5 w-5 text-red-400"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                          clipRule="evenodd"
+                        />
                       </svg>
                     </div>
                     <div className="ml-3">
-                      <h3 className="text-sm font-medium text-red-800">Error</h3>
+                      <h3 className="text-sm font-medium text-red-800">
+                        Error
+                      </h3>
                       <div className="mt-2 text-sm text-red-700">
                         <p>{error}</p>
                       </div>
@@ -755,13 +1042,111 @@ export default function Home() {
               {/* Caption Display */}
               {caption && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-green-800 mb-2">Video Caption</h3>
+                  <h3 className="text-sm font-medium text-green-800 mb-2">
+                    Video Caption
+                  </h3>
                   <p className="text-sm text-green-700">{caption}</p>
                 </div>
               )}
             </div>
           </div>
         </div>
+
+        {/* Preview Section */}
+        {(rapLyrics || generatedMusic || characterImageUrl || finalVideo || cachedRecordedVideo) && (
+          <div className="max-w-4xl mx-auto mt-8">
+            <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 text-center">
+                📁 Current Saved Data
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Cached Recorded Video Preview */}
+                {cachedRecordedVideo && (
+                  <div className="bg-orange-50 rounded-lg p-4 border-2 border-orange-200">
+                    <h3 className="text-lg font-semibold text-orange-900 mb-3 flex items-center gap-2">
+                      📹 Cached Recorded Video
+                    </h3>
+                    <div className="bg-white p-3 rounded-lg border">
+                      <video
+                        controls
+                        src={cachedRecordedVideo}
+                        className="w-full rounded-lg"
+                        style={{ maxHeight: "200px" }}
+                      >
+                        Your browser does not support the video tag.
+                      </video>
+                    </div>
+                  </div>
+                )}
+
+                {/* Lyrics Preview */}
+                {rapLyrics && (
+                  <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
+                    <h3 className="text-lg font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                      🎤 Generated Lyrics
+                    </h3>
+                    <div className="bg-white text-gray-800 p-3 rounded-lg font-medium whitespace-pre-line text-sm max-h-32 overflow-y-auto border">
+                      {rapLyrics}
+                    </div>
+                  </div>
+                )}
+
+                {/* Music Preview */}
+                {generatedMusic && (
+                  <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
+                    <h3 className="text-lg font-semibold text-green-900 mb-3 flex items-center gap-2">
+                      🎵 Generated Music
+                    </h3>
+                    <div className="bg-white p-3 rounded-lg border">
+                      <audio controls className="w-full">
+                        <source src={generatedMusic} type="audio/mpeg" />
+                        Your browser does not support the audio element.
+                      </audio>
+                    </div>
+                  </div>
+                )}
+
+                {/* Character Image Preview */}
+                {characterImageUrl && (
+                  <div className="bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
+                    <h3 className="text-lg font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                      🖼️ Character Image
+                    </h3>
+                    <div className="bg-white p-3 rounded-lg border">
+                      <Image
+                        src={characterImageUrl}
+                        alt="Generated Character"
+                        width={400}
+                        height={128}
+                        className="w-full h-32 object-cover rounded-lg"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Final Video Preview */}
+                {finalVideo && (
+                  <div className="bg-pink-50 rounded-lg p-4 border-2 border-pink-200 md:col-span-2">
+                    <h3 className="text-lg font-semibold text-pink-900 mb-3 flex items-center gap-2">
+                      🎬 Final Video
+                    </h3>
+                    <div className="bg-white p-3 rounded-lg border">
+                      <video
+                        controls
+                        src={finalVideo}
+                        className="w-full max-w-2xl mx-auto rounded-lg"
+                        style={{ maxHeight: "300px" }}
+                      >
+                        Your browser does not support the video tag.
+                      </video>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

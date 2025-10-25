@@ -1,23 +1,28 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 import { AmericaMap } from "@/components/america-map";
-import { AvatarGenerationResponse, CampaignPosterResponse, CampaignVideoResponse } from "@/types";
+import {
+  AvatarGenerationResponse,
+  CampaignPosterResponse,
+  CampaignVideoResponse,
+} from "@/types";
 import { CAMPAIGN_STYLES } from "@/constants/campaign";
+import Link from "next/link";
 
 export default function Home() {
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedAvatar, setGeneratedAvatar] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Campaign poster states
-  const [selectedCity, setSelectedCity] = useState<string>('');
-  const [selectedStyle, setSelectedStyle] = useState<string>('republican');
+  const [selectedCity, setSelectedCity] = useState<string>("");
+  const [selectedStyle, setSelectedStyle] = useState<string>("republican");
   const [isGeneratingPoster, setIsGeneratingPoster] = useState(false);
   const [generatedPoster, setGeneratedPoster] = useState<string | null>(null);
   const [posterError, setPosterError] = useState<string | null>(null);
-  
+
   // Campaign video states
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [generatedVideo, setGeneratedVideo] = useState<string | null>(null);
@@ -25,14 +30,14 @@ export default function Home() {
   const [videoSettings, setVideoSettings] = useState({
     fps: 24,
     duration: 5,
-    resolution: '720p' as '480p' | '720p',
-    aspect_ratio: '16:9' as '16:9' | '9:16' | '1:1',
-    camera_fixed: false
+    resolution: "720p" as "480p" | "720p",
+    aspect_ratio: "16:9" as "16:9" | "9:16" | "1:1",
+    camera_fixed: false,
   });
 
   const generateAvatar = async () => {
     if (!description.trim()) {
-      setError('Please enter a description of yourself');
+      setError("Please enter a description of yourself");
       return;
     }
 
@@ -40,23 +45,23 @@ export default function Home() {
     setError(null);
 
     try {
-      const response = await fetch('/api/generate-avatar', {
-        method: 'POST',
+      const response = await fetch("/api/generate-avatar", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ description }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate avatar');
+        throw new Error("Failed to generate avatar");
       }
 
       const data: AvatarGenerationResponse = await response.json();
       setGeneratedAvatar(data.imageUrl || null);
     } catch (err) {
-      setError('Failed to generate avatar. Please try again.');
-      console.error('Avatar generation error:', err);
+      setError("Failed to generate avatar. Please try again.");
+      console.error("Avatar generation error:", err);
     } finally {
       setIsGenerating(false);
     }
@@ -64,12 +69,12 @@ export default function Home() {
 
   const generateCampaignPoster = async () => {
     if (!description.trim()) {
-      setPosterError('Please enter a description of yourself');
+      setPosterError("Please enter a description of yourself");
       return;
     }
 
     if (!selectedCity) {
-      setPosterError('Please select a city from the map');
+      setPosterError("Please select a city from the map");
       return;
     }
 
@@ -77,27 +82,27 @@ export default function Home() {
     setPosterError(null);
 
     try {
-      const response = await fetch('/api/generate-campaign-poster', {
-        method: 'POST',
+      const response = await fetch("/api/generate-campaign-poster", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-          description, 
-          selectedCity, 
-          campaignStyle: selectedStyle 
+        body: JSON.stringify({
+          description,
+          selectedCity,
+          campaignStyle: selectedStyle,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate campaign poster');
+        throw new Error("Failed to generate campaign poster");
       }
 
       const data: CampaignPosterResponse = await response.json();
       setGeneratedPoster(data.imageUrl || null);
     } catch (err) {
-      setPosterError('Failed to generate campaign poster. Please try again.');
-      console.error('Campaign poster generation error:', err);
+      setPosterError("Failed to generate campaign poster. Please try again.");
+      console.error("Campaign poster generation error:", err);
     } finally {
       setIsGeneratingPoster(false);
     }
@@ -105,12 +110,12 @@ export default function Home() {
 
   const generateCampaignVideo = async () => {
     if (!description.trim()) {
-      setVideoError('Please enter a description of yourself');
+      setVideoError("Please enter a description of yourself");
       return;
     }
 
     if (!selectedCity) {
-      setVideoError('Please select a city from the map');
+      setVideoError("Please select a city from the map");
       return;
     }
 
@@ -118,28 +123,28 @@ export default function Home() {
     setVideoError(null);
 
     try {
-      const response = await fetch('/api/generate-campaign-video', {
-        method: 'POST',
+      const response = await fetch("/api/generate-campaign-video", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-          description, 
-          selectedCity, 
+        body: JSON.stringify({
+          description,
+          selectedCity,
           campaignStyle: selectedStyle,
-          videoSettings
+          videoSettings,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate campaign video');
+        throw new Error("Failed to generate campaign video");
       }
 
       const data: CampaignVideoResponse = await response.json();
       setGeneratedVideo(data.videoUrl || null);
     } catch (err) {
-      setVideoError('Failed to generate campaign video. Please try again.');
-      console.error('Campaign video generation error:', err);
+      setVideoError("Failed to generate campaign video. Please try again.");
+      console.error("Campaign video generation error:", err);
     } finally {
       setIsGeneratingVideo(false);
     }
@@ -151,20 +156,21 @@ export default function Home() {
         <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900 sm:text-5xl md:text-6xl">
             Welcome to{" "}
-            <span className="text-blue-600">Be The Mayor</span>
+            <span className="text-blue-600">Turn into celebrity</span>
           </h1>
           <p className="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
-            Create your avatar, campaign posters, and videos. Explore interactive maps.
+            Create your avatar, campaign posters, and videos. Explore
+            interactive maps.
           </p>
-          
+
           {/* Navigation */}
           <div className="mt-6">
-            <a
+            <Link
               href="/"
               className="inline-block bg-gray-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-gray-700 transition-colors text-sm"
             >
               🎬 Back to Video Recorder
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -179,11 +185,14 @@ export default function Home() {
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 sm:mb-8 text-center">
               Create Your Campaign Materials
             </h2>
-            
+
             <div className="space-y-6 sm:space-y-8">
               {/* Description Input */}
               <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="description"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   Describe yourself
                 </label>
                 <textarea
@@ -209,11 +218,15 @@ export default function Home() {
                       className={`p-2 sm:p-3 rounded-lg border-2 transition-all ${
                         selectedStyle === style.id
                           ? `border-${style.colorScheme} bg-${style.colorScheme} text-white`
-                          : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                          : "border-gray-200 bg-gray-50 hover:border-gray-300"
                       }`}
                     >
-                      <div className="font-medium text-xs sm:text-sm">{style.name}</div>
-                      <div className="text-xs opacity-75 mt-1 hidden sm:block">{style.description}</div>
+                      <div className="font-medium text-xs sm:text-sm">
+                        {style.name}
+                      </div>
+                      <div className="text-xs opacity-75 mt-1 hidden sm:block">
+                        {style.description}
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -226,9 +239,13 @@ export default function Home() {
                 </label>
                 <div className="px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg bg-gray-50">
                   {selectedCity ? (
-                    <span className="text-gray-900 font-medium text-sm sm:text-base">{selectedCity}</span>
+                    <span className="text-gray-900 font-medium text-sm sm:text-base">
+                      {selectedCity}
+                    </span>
                   ) : (
-                    <span className="text-gray-500 text-sm sm:text-base">Select a city from the map above</span>
+                    <span className="text-gray-500 text-sm sm:text-base">
+                      Select a city from the map above
+                    </span>
                   )}
                 </div>
               </div>
@@ -240,10 +257,17 @@ export default function Home() {
                 </label>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Duration</label>
+                    <label className="block text-xs text-gray-600 mb-1">
+                      Duration
+                    </label>
                     <select
                       value={videoSettings.duration}
-                      onChange={(e) => setVideoSettings(prev => ({ ...prev, duration: parseInt(e.target.value) }))}
+                      onChange={(e) =>
+                        setVideoSettings((prev) => ({
+                          ...prev,
+                          duration: parseInt(e.target.value),
+                        }))
+                      }
                       className="w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs sm:text-sm"
                     >
                       <option value={3}>3s</option>
@@ -253,10 +277,17 @@ export default function Home() {
                   </div>
 
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Resolution</label>
+                    <label className="block text-xs text-gray-600 mb-1">
+                      Resolution
+                    </label>
                     <select
                       value={videoSettings.resolution}
-                      onChange={(e) => setVideoSettings(prev => ({ ...prev, resolution: e.target.value as '480p' | '720p' }))}
+                      onChange={(e) =>
+                        setVideoSettings((prev) => ({
+                          ...prev,
+                          resolution: e.target.value as "480p" | "720p",
+                        }))
+                      }
                       className="w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs sm:text-sm"
                     >
                       <option value="480p">480p</option>
@@ -265,10 +296,20 @@ export default function Home() {
                   </div>
 
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Aspect Ratio</label>
+                    <label className="block text-xs text-gray-600 mb-1">
+                      Aspect Ratio
+                    </label>
                     <select
                       value={videoSettings.aspect_ratio}
-                      onChange={(e) => setVideoSettings(prev => ({ ...prev, aspect_ratio: e.target.value as '16:9' | '9:16' | '1:1' }))}
+                      onChange={(e) =>
+                        setVideoSettings((prev) => ({
+                          ...prev,
+                          aspect_ratio: e.target.value as
+                            | "16:9"
+                            | "9:16"
+                            | "1:1",
+                        }))
+                      }
                       className="w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs sm:text-sm"
                     >
                       <option value="16:9">16:9</option>
@@ -278,10 +319,17 @@ export default function Home() {
                   </div>
 
                   <div>
-                    <label className="block text-xs text-gray-600 mb-1">Camera</label>
+                    <label className="block text-xs text-gray-600 mb-1">
+                      Camera
+                    </label>
                     <select
-                      value={videoSettings.camera_fixed ? 'fixed' : 'dynamic'}
-                      onChange={(e) => setVideoSettings(prev => ({ ...prev, camera_fixed: e.target.value === 'fixed' }))}
+                      value={videoSettings.camera_fixed ? "fixed" : "dynamic"}
+                      onChange={(e) =>
+                        setVideoSettings((prev) => ({
+                          ...prev,
+                          camera_fixed: e.target.value === "fixed",
+                        }))
+                      }
                       className="w-full px-2 sm:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs sm:text-sm"
                     >
                       <option value="dynamic">Dynamic</option>
@@ -301,55 +349,107 @@ export default function Home() {
                 >
                   {isGenerating ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <svg
+                        className="animate-spin -ml-1 mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
                       </svg>
                       <span className="hidden sm:inline">Generating...</span>
                       <span className="sm:hidden">Generating</span>
                     </>
                   ) : (
-                    '🎭 Generate Avatar'
+                    "🎭 Generate Avatar"
                   )}
                 </button>
 
                 {/* Poster Generation */}
                 <button
                   onClick={generateCampaignPoster}
-                  disabled={isGeneratingPoster || !description.trim() || !selectedCity}
+                  disabled={
+                    isGeneratingPoster || !description.trim() || !selectedCity
+                  }
                   className="bg-purple-600 text-white py-2 sm:py-3 px-4 sm:px-6 rounded-lg font-medium hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center text-sm sm:text-base"
                 >
                   {isGeneratingPoster ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <svg
+                        className="animate-spin -ml-1 mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
                       </svg>
                       <span className="hidden sm:inline">Generating...</span>
                       <span className="sm:hidden">Generating</span>
                     </>
                   ) : (
-                    '🎨 Generate Poster'
+                    "🎨 Generate Poster"
                   )}
                 </button>
 
                 {/* Video Generation */}
                 <button
                   onClick={generateCampaignVideo}
-                  disabled={isGeneratingVideo || !description.trim() || !selectedCity}
+                  disabled={
+                    isGeneratingVideo || !description.trim() || !selectedCity
+                  }
                   className="bg-green-600 text-white py-2 sm:py-3 px-4 sm:px-6 rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center text-sm sm:text-base sm:col-span-2 lg:col-span-1"
                 >
                   {isGeneratingVideo ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <svg
+                        className="animate-spin -ml-1 mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
                       </svg>
                       <span className="hidden sm:inline">Generating...</span>
                       <span className="sm:hidden">Generating</span>
                     </>
                   ) : (
-                    '🎬 Generate Video'
+                    "🎬 Generate Video"
                   )}
                 </button>
               </div>
@@ -380,7 +480,9 @@ export default function Home() {
                 <div className="space-y-4 sm:space-y-6">
                   {generatedAvatar && (
                     <div className="text-center">
-                      <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Your Avatar</h3>
+                      <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">
+                        Your Avatar
+                      </h3>
                       <img
                         src={generatedAvatar}
                         alt="Generated Avatar"
@@ -391,7 +493,9 @@ export default function Home() {
 
                   {generatedPoster && (
                     <div className="text-center">
-                      <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Your Campaign Poster</h3>
+                      <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">
+                        Your Campaign Poster
+                      </h3>
                       <img
                         src={generatedPoster}
                         alt="Generated Campaign Poster"
@@ -402,7 +506,9 @@ export default function Home() {
 
                   {generatedVideo && (
                     <div className="text-center">
-                      <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Your Campaign Video</h3>
+                      <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">
+                        Your Campaign Video
+                      </h3>
                       <video
                         src={generatedVideo}
                         controls

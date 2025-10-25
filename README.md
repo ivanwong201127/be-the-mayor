@@ -44,11 +44,25 @@ npm install
 ```
 
 3. Set up environment variables:
-Create a `.env` file in the root directory:
+Create a `.env.local` file in the root directory:
 ```env
 REPLICATE_API_KEY=your_replicate_api_key_here
+GOOGLE_API_KEY=your_google_api_key_here
+GOOGLE_SEARCH_ENGINE_ID=your_google_search_engine_id_here
 NODE_ENV=development
 ```
+
+#### Getting API Keys
+
+1. **Replicate API Key**: Get from [replicate.com](https://replicate.com)
+2. **Google API Key**: 
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Enable the "Custom Search API"
+   - Create credentials (API Key)
+3. **Google Search Engine ID**:
+   - Go to [Google Custom Search](https://cse.google.com/)
+   - Create a new search engine
+   - Copy the Search Engine ID
 
 4. Start the development server:
 ```bash

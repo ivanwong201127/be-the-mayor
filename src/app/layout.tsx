@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Be The Mayor",
-  description: "A Next.js application with interactive maps and beautiful UI components",
+  title: "Turn into celebrity",
+  description: "Turn into celebrity with AI",
 };
 
 export const viewport: Viewport = {

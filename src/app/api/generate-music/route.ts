@@ -1,15 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MusicGenInput, MusicGenPrediction, MusicGenerationRequest, MusicGenerationResponse } from '@/types';
+import { localCache } from '@/lib/cache';
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt, duration, inputAudio, modelVersion, outputFormat }: MusicGenerationRequest = await request.json();
+    const { lyrics, bitrate, song_file, sample_rate }: MusicGenerationRequest = await request.json();
 
-    if (!prompt) {
+    if (!lyrics) {
       return NextResponse.json(
-        { error: 'Prompt is required' },
+        { error: 'Lyrics are required' },
         { status: 400 }
       );
+    }
+
+    // Create cache key based on parameters
+    const cacheKey = `music-minimax-${lyrics.substring(0, 50)}-${bitrate || 256000}-${sample_rate || 44100}`;
+    
+    // Check cache first
+    const cachedEntry = localCache.get(cacheKey);
+    if (cachedEntry) {
+      console.log(`Using cached music for key: ${cacheKey}`);
+      return NextResponse.json({
+        audioUrl: cachedEntry.url,
+        cached: true
+      } as MusicGenerationResponse);
     }
 
     const replicateApiToken = process.env.REPLICATE_API_KEY;
@@ -21,30 +35,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Default settings for rap music generation
+    // MiniMax music generation input
     const input: MusicGenInput = {
-      model_version: modelVersion || 'stereo-large',
-      prompt: prompt,
-      duration: duration || 30, // Default 30 seconds
-      temperature: 1,
-      continuation: false,
-      continuation_start: 0,
-      multi_band_diffusion: false,
-      normalization_strategy: 'peak',
-      top_k: 250,
-      top_p: 0,
-      classifier_free_guidance: 3,
-      output_format: outputFormat || 'wav'
+      lyrics: lyrics,
+      bitrate: bitrate || 256000,
+      song_file: song_file || "https://replicate.delivery/pbxt/M9zum1Y6qujy02jeigHTJzn0lBTQOemB7OkH5XmmPSC5OUoO/MiniMax-Electronic.wav",
+      sample_rate: sample_rate || 44100
     };
 
-    // Only add input_audio if it's provided
-    if (inputAudio) {
-      input.input_audio = inputAudio;
-    }
+    console.log('Sending music generation request to MiniMax with input:', JSON.stringify(input, null, 2));
 
-    console.log('Sending music generation request to MusicGen with input:', JSON.stringify(input, null, 2));
-
-    const response = await fetch('https://api.replicate.com/v1/predictions', {
+    const response = await fetch('https://api.replicate.com/v1/models/minimax/music-01/predictions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${replicateApiToken}`,
@@ -52,16 +53,15 @@ export async function POST(request: NextRequest) {
         'Prefer': 'wait'
       },
       body: JSON.stringify({ 
-        version: 'meta/musicgen:671ac645ce5e552cc63a54a2bbff63fcf798043055d2dac5fc9e36a837eedcfb',
         input: input 
       })
     });
 
-    console.log('MusicGen API response:', response);
+    console.log('MiniMax API response:', response);
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error('MusicGen API error:', errorData);
+      console.error('MiniMax API error:', errorData);
       return NextResponse.json(
         { error: 'Failed to generate music' },
         { status: 500 }
@@ -71,8 +71,18 @@ export async function POST(request: NextRequest) {
     const data: MusicGenPrediction = await response.json();
 
     if (data.output) {
+      // Cache the result
+      localCache.set(cacheKey, data.output, {
+        lyrics,
+        bitrate,
+        song_file,
+        sample_rate,
+        timestamp: Date.now()
+      });
+
       return NextResponse.json({
-        audioUrl: data.output
+        audioUrl: data.output,
+        cached: false
       } as MusicGenerationResponse);
     } else {
       return NextResponse.json(

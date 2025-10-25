@@ -24,7 +24,7 @@ export interface ReplicatePrediction {
 
 export interface ReplicateInput {
   prompt: string;
-  input_image: string;
+  input_image?: string;
   aspect_ratio: 'match_input_image' | '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
   output_format: 'jpg' | 'png' | 'webp';
   safety_tolerance: number;
@@ -160,23 +160,12 @@ export interface VideoChunk {
   endTime: number;
 }
 
-// Music Generation API Types (MusicGen)
+// Music Generation API Types (MiniMax)
 export interface MusicGenInput {
-  model_version?: string;
-  prompt?: string;
-  input_audio?: string;
-  duration?: number;
-  continuation?: boolean;
-  continuation_start?: number;
-  continuation_end?: number;
-  multi_band_diffusion?: boolean;
-  normalization_strategy?: string;
-  top_k?: number;
-  top_p?: number;
-  temperature?: number;
-  classifier_free_guidance?: number;
-  output_format?: string;
-  seed?: number;
+  lyrics: string;
+  bitrate?: number;
+  song_file?: string;
+  sample_rate?: number;
 }
 
 export interface MusicGenPrediction {
@@ -202,15 +191,15 @@ export interface MusicGenPrediction {
 
 // Music Generation Request/Response
 export interface MusicGenerationRequest {
-  prompt: string;
-  duration?: number;
-  inputAudio?: string | null;
-  modelVersion?: string;
-  outputFormat?: 'wav' | 'mp3';
+  lyrics: string;
+  bitrate?: number;
+  song_file?: string;
+  sample_rate?: number;
 }
 
 export interface MusicGenerationResponse {
   audioUrl?: string;
+  cached?: boolean;
   error?: string;
 }
 
@@ -266,6 +255,36 @@ export interface TextGenerationResponse {
   error?: string;
 }
 
+// Google Image Search Types
+export interface GoogleImageSearchRequest {
+  query: string;
+  numResults?: number;
+  safeSearch?: 'off' | 'moderate' | 'strict';
+}
+
+export interface GoogleImageSearchResponse {
+  images: Array<{
+    url: string;
+    title: string;
+    source: string;
+    thumbnail: string;
+  }>;
+  error?: string;
+}
+
+// Character Image Types
+export interface CharacterImageRequest {
+  characterName: string;
+  characterDescription: string;
+}
+
+export interface CharacterImageResponse {
+  imageUrl?: string;
+  characterPrompt?: string;
+  cached?: boolean;
+  error?: string;
+}
+
 // Unified Image Generation Types (combines avatar and campaign poster)
 export interface ImageGenerationRequest {
   type: 'avatar' | 'campaign-poster';
@@ -277,12 +296,13 @@ export interface ImageGenerationRequest {
 
 export interface ImageGenerationResponse {
   imageUrl?: string;
+  cached?: boolean;
   error?: string;
 }
 
 // Unified Video Generation Types (combines compose-video and campaign-video)
 export interface VideoGenerationRequest {
-  type: 'compose' | 'campaign';
+  type: 'compose' | 'campaign' | 'celebrity' | 'omni-human';
   // Compose video fields
   backgroundVideo?: File;
   characterImage?: string;
@@ -298,6 +318,12 @@ export interface VideoGenerationRequest {
     aspect_ratio?: '16:9' | '9:16' | '1:1';
     camera_fixed?: boolean;
   };
+  // Celebrity video fields
+  selectedCharacter?: string;
+  rapLyrics?: string;
+  // Omni-human fields
+  audio?: string;
+  image?: string;
 }
 
 export interface VideoGenerationResponse {
@@ -319,4 +345,32 @@ export interface City {
 export interface MapData {
   cities: City[];
   usaOutline: string;
+}
+
+// Omni-Human API Types
+export interface OmniHumanInput {
+  audio: string;
+  image: string;
+}
+
+export interface OmniHumanPrediction {
+  id: string;
+  status: 'starting' | 'processing' | 'succeeded' | 'failed' | 'canceled';
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  input: OmniHumanInput;
+  output?: string; // Video URL
+  error?: string;
+  logs?: string;
+  metrics?: {
+    predict_time: number;
+    total_time: number;
+  };
+  urls: {
+    stream: string;
+    get: string;
+    cancel: string;
+  };
+  version: string;
 }
