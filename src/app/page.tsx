@@ -534,12 +534,20 @@ export default function Home() {
 
       const celebrityPrompt = `Create an image with ${selectedChar.name} in the background environment. The celebrity should be naturally integrated into the scene, looking like they belong in that environment. High quality, cinematic lighting, realistic composition. The celebrity will be rapping in this environment.`;
 
+      // Use cached image URL for Seedream-4
+      let inputImageUrl = null;
+      if (cachedRecordedVideo) {
+        // Use the cached image URL
+        inputImageUrl = cachedRecordedVideo;
+      }
+
       const characterImageResponse = await fetch("/api/get-character-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           characterName: selectedChar.name,
           characterDescription: celebrityPrompt,
+          inputImage: inputImageUrl,
         }),
       });
 

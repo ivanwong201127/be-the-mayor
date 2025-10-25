@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   CharacterImageRequest,
   CharacterImageResponse,
-  ReplicateInput,
-  ReplicatePrediction,
+  Seedream4Input,
+  Seedream4Prediction,
 } from "@/types";
 import { localCache } from "@/lib/cache";
+import { getCharacterPromptByName } from "@/constants/characters";
 
 export async function POST(request: NextRequest) {
   try {
-    const { characterName, characterDescription }: CharacterImageRequest =
+    const { characterName, characterDescription, inputImage }: CharacterImageRequest =
       await request.json();
 
     if (!characterName || !characterDescription) {
@@ -30,28 +31,8 @@ export async function POST(request: NextRequest) {
       console.log(`Using cached character image for: ${characterName}`);
 
       // Get character prompt for cached entries
-      let characterPrompt = "";
-      if (characterName.toLowerCase().includes("jungkook")) {
-        characterPrompt =
-          "Jungkook from BTS, handsome Korean male idol with dark hair, wearing stylish outfit, giving a kiss at the end of the video. Professional K-pop star appearance, charismatic smile, dancing gracefully.";
-      } else if (characterName.toLowerCase().includes("jimin")) {
-        characterPrompt =
-          "Jimin from BTS, beautiful Korean male idol with blonde hair, wearing elegant outfit, giving a kiss at the end of the video. Professional K-pop star appearance, charming smile, smooth dance moves.";
-      } else if (characterName.toLowerCase().includes("v")) {
-        characterPrompt =
-          "V (Taehyung) from BTS, handsome Korean male idol with dark hair, wearing fashionable outfit, giving a kiss at the end of the video. Professional K-pop star appearance, deep voice, artistic expression.";
-      } else if (characterName.toLowerCase().includes("jennie")) {
-        characterPrompt =
-          "Jennie from BLACKPINK, beautiful Korean female idol with dark hair, wearing stylish outfit, giving a kiss at the end of the video. Professional K-pop star appearance, confident smile, elegant dance moves.";
-      } else if (characterName.toLowerCase().includes("lisa")) {
-        characterPrompt =
-          "Lisa from BLACKPINK, beautiful Thai-Korean female idol with blonde hair, wearing trendy outfit, giving a kiss at the end of the video. Professional K-pop star appearance, bright smile, powerful dance moves.";
-      } else if (characterName.toLowerCase().includes("blue")) {
-        characterPrompt =
-          "A charming blue character, friendly and approachable, wearing blue outfit, giving a kiss at the end of the video. Cartoon-style character, warm smile, animated movements.";
-      } else {
-        characterPrompt = characterDescription;
-      }
+      const characterData = getCharacterPromptByName(characterName);
+      const characterPrompt = characterData?.imagePrompt || characterDescription;
 
       return NextResponse.json({
         imageUrl: cachedEntry.url,
@@ -61,30 +42,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Create character prompt based on character
-    let characterPrompt = "";
-
-    if (characterName.toLowerCase().includes("jungkook")) {
-      characterPrompt +=
-        "Jungkook from BTS, handsome Korean male idol with dark hair, wearing stylish outfit, giving a kiss at the end of the video. Professional K-pop star appearance, charismatic smile, dancing gracefully.";
-    } else if (characterName.toLowerCase().includes("jimin")) {
-      characterPrompt +=
-        "Jimin from BTS, beautiful Korean male idol with blonde hair, wearing elegant outfit, giving a kiss at the end of the video. Professional K-pop star appearance, charming smile, smooth dance moves.";
-    } else if (characterName.toLowerCase().includes("v")) {
-      characterPrompt +=
-        "V (Taehyung) from BTS, handsome Korean male idol with dark hair, wearing fashionable outfit, giving a kiss at the end of the video. Professional K-pop star appearance, deep voice, artistic expression.";
-    } else if (characterName.toLowerCase().includes("jennie")) {
-      characterPrompt +=
-        "Jennie from BLACKPINK, beautiful Korean female idol with dark hair, wearing stylish outfit, giving a kiss at the end of the video. Professional K-pop star appearance, confident smile, elegant dance moves.";
-    } else if (characterName.toLowerCase().includes("lisa")) {
-      characterPrompt +=
-        "Lisa from BLACKPINK, beautiful Thai-Korean female idol with blonde hair, wearing trendy outfit, giving a kiss at the end of the video. Professional K-pop star appearance, bright smile, powerful dance moves.";
-    } else if (characterName.toLowerCase().includes("blue")) {
-      characterPrompt +=
-        "A charming blue character, friendly and approachable, wearing blue outfit, giving a kiss at the end of the video. Cartoon-style character, warm smile, animated movements.";
-    } else {
-      // Generic prompt based on description
-      characterPrompt += characterDescription; // Use the provided description as prompt
-    }
+    const characterData = getCharacterPromptByName(characterName);
+    const characterPrompt = characterData?.imagePrompt || characterDescription;
 
     console.log(`Generating character image: ${characterPrompt}`);
 
@@ -94,17 +53,20 @@ export async function POST(request: NextRequest) {
       throw new Error("Replicate API token not configured");
     }
 
-      // Generate image using Replicate
-      const input: ReplicateInput = {
+      // Generate image using Seedream-4
+      const input: Seedream4Input = {
+        size: "2K",
+        width: 2048,
+        height: 2048,
         prompt: characterPrompt,
-        aspect_ratio: "16:9" as const,
-        output_format: "jpg" as const,
-        safety_tolerance: 2,
-        prompt_upsampling: false,
+        max_images: 1,
+        image_input: inputImage ? [inputImage] : [],
+        aspect_ratio: "16:9",
+        sequential_image_generation: "auto",
       };
 
     const response = await fetch(
-      "https://api.replicate.com/v1/models/black-forest-labs/flux-kontext-pro/predictions",
+      "https://api.replicate.com/v1/models/bytedance/seedream-4/predictions",
       {
         method: "POST",
         headers: {
@@ -124,17 +86,17 @@ export async function POST(request: NextRequest) {
       throw new Error("Failed to generate character image");
     }
 
-    const data: ReplicatePrediction = await response.json();
+    const data: Seedream4Prediction = await response.json();
 
     if (data.error) {
       throw new Error(data.error);
     }
 
-    if (!data.output || typeof data.output !== "string") {
+    if (!data.output || !Array.isArray(data.output) || data.output.length === 0) {
       throw new Error("No character image generated");
     }
 
-    const imageUrl = data.output;
+    const imageUrl = data.output[0]; // Use the first generated image
 
     // Cache the result
     localCache.set(cacheKey, imageUrl, {

@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       try {
         console.log(`Attempt ${attempt}/3: Generating Hailuo video...`);
         
-        const response = await fetch('https://api.replicate.com/v1/models/hailuo/hailuo-video/predictions', {
+        const response = await fetch('https://api.replicate.com/v1/models/minimax/hailuo-02-fast/predictions', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${replicateApiToken}`,
@@ -51,6 +51,8 @@ export async function POST(request: NextRequest) {
           },
           body: JSON.stringify({ input })
         });
+
+        console.log('Hailuo API response:', response);
 
         if (!response.ok) {
           const errorData = await response.text();

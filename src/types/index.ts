@@ -278,6 +278,7 @@ export interface GoogleImageSearchResponse {
 export interface CharacterImageRequest {
   characterName: string;
   characterDescription: string;
+  inputImage?: string; // Optional input image URL for Seedream-4
 }
 
 export interface CharacterImageResponse {
@@ -366,6 +367,40 @@ export interface HailuoPrediction {
   completed_at?: string;
   input: HailuoInput;
   output?: string; // Video URL
+  error?: string;
+  logs?: string;
+  metrics?: {
+    predict_time: number;
+    total_time: number;
+  };
+  urls: {
+    stream: string;
+    get: string;
+    cancel: string;
+  };
+  version: string;
+}
+
+// Seedream-4 API Types
+export interface Seedream4Input {
+  size: string;
+  width: number;
+  height: number;
+  prompt: string;
+  max_images: number;
+  image_input: string[];
+  aspect_ratio: string;
+  sequential_image_generation: string;
+}
+
+export interface Seedream4Prediction {
+  id: string;
+  status: 'starting' | 'processing' | 'succeeded' | 'failed' | 'canceled';
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  input: Seedream4Input;
+  output?: string[]; // Array of image URLs
   error?: string;
   logs?: string;
   metrics?: {
