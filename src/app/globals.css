@@ -10,17 +10,70 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  
+  /* Custom colors for the map */
+  --color-map-land: #e5e7eb;
+  --color-map-water: #3b82f6;
+  --color-map-city: #ef4444;
+  --color-map-city-hover: #dc2626;
+  --color-map-selected: #10b981;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --color-map-land: #374151;
+    --color-map-water: #1e40af;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Custom styles for the map */
+.map-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.map-svg {
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.city-dot {
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+}
+
+.city-dot:hover {
+  transform: scale(1.2);
+}
+
+.city-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+/* Animation for selected cities */
+.city-selected {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
