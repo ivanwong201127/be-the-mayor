@@ -214,14 +214,89 @@ export interface MusicGenerationResponse {
   error?: string;
 }
 
-// Video Composition Types
-export interface VideoCompositionRequest {
-  backgroundVideo: File;
-  characterImage: string; // URL to character image
-  musicUrl?: string; // Optional background music
+// Text Generation API Types
+export interface TextGenInput {
+  prompt: string;
+  messages?: any[];
+  verbosity?: 'minimal' | 'medium' | 'verbose';
+  image_input?: any[];
+  reasoning_effort?: 'minimal' | 'medium' | 'high';
 }
 
-export interface VideoCompositionResponse {
+export interface TextGenPrediction {
+  id: string;
+  status: 'starting' | 'processing' | 'succeeded' | 'failed' | 'canceled';
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+  input: TextGenInput;
+  output?: string[]; // Array of text tokens
+  error?: string;
+  logs?: string;
+  metrics?: {
+    input_token_count: number;
+    tokens_per_second: number;
+    output_token_count: number;
+    predict_time: number;
+    total_time: number;
+    time_to_first_token: number;
+  };
+  urls: {
+    get: string;
+    cancel: string;
+  };
+  version: string;
+}
+
+// Text Generation Request/Response
+export interface TextGenerationRequest {
+  prompt: string;
+  messages?: any[];
+  verbosity?: 'minimal' | 'medium' | 'verbose';
+  image_input?: any[];
+  reasoning_effort?: 'minimal' | 'medium' | 'high';
+}
+
+export interface TextGenerationResponse {
+  text?: string;
+  error?: string;
+}
+
+// Unified Image Generation Types (combines avatar and campaign poster)
+export interface ImageGenerationRequest {
+  type: 'avatar' | 'campaign-poster';
+  description: string;
+  // Campaign poster specific fields
+  selectedCity?: string;
+  campaignStyle?: string;
+}
+
+export interface ImageGenerationResponse {
+  imageUrl?: string;
+  error?: string;
+}
+
+// Unified Video Generation Types (combines compose-video and campaign-video)
+export interface VideoGenerationRequest {
+  type: 'compose' | 'campaign';
+  // Compose video fields
+  backgroundVideo?: File;
+  characterImage?: string;
+  musicUrl?: string;
+  // Campaign video fields
+  description?: string;
+  selectedCity?: string;
+  campaignStyle?: string;
+  videoSettings?: {
+    fps?: number;
+    duration?: number;
+    resolution?: '480p' | '720p';
+    aspect_ratio?: '16:9' | '9:16' | '1:1';
+    camera_fixed?: boolean;
+  };
+}
+
+export interface VideoGenerationResponse {
   videoUrl?: string;
   error?: string;
 }

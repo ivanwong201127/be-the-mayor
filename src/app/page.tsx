@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { VideoCaptioningResponse, MusicGenerationResponse, VideoCompositionResponse } from '@/types';
+import { VideoCaptioningResponse, MusicGenerationResponse, VideoGenerationResponse, ImageGenerationResponse } from '@/types';
 import { VIDEO_CAPTIONING_CONFIG, VIDEO_UTILS } from '@/constants/video-captioning';
 import Link from 'next/link';
 
@@ -229,6 +229,40 @@ export default function Home() {
     }
   }, [isMobile, startRecording]);
 
+  // Helper function to make API calls with retry logic
+  const makeApiCallWithRetry = async (url: string, options: RequestInit, maxRetries = 3): Promise<Response> => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(url, options);
+        
+        if (response.status === 429) {
+          // Rate limited - wait and retry
+          const retryAfter = response.headers.get('retry-after');
+          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
+          
+          if (attempt < maxRetries) {
+            console.log(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            continue;
+          }
+        }
+        
+        return response;
+      } catch (error) {
+        if (attempt === maxRetries) {
+          throw error;
+        }
+        
+        // Exponential backoff for other errors
+        const waitTime = Math.pow(2, attempt) * 1000;
+        console.log(`API call failed. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxRetries}`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+    
+    throw new Error('Max retries exceeded');
+  };
+
   // Unified flow function
   const startUnifiedFlow = async () => {
     if (!videoFile) {
@@ -251,10 +285,13 @@ export default function Home() {
         throw new Error('Please select a character');
       }
 
-      const characterResponse = await fetch('/api/generate-avatar', {
+      const characterResponse = await makeApiCallWithRetry('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description: selectedChar.description }),
+        body: JSON.stringify({ 
+          type: 'avatar',
+          description: selectedChar.description 
+        }),
       });
 
       if (!characterResponse.ok) {
@@ -268,43 +305,63 @@ export default function Home() {
 
       setBlueCharacter(characterData.imageUrl);
 
+      // Add delay to prevent rate limiting
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+
       // Step 2: Generate Rap Lyrics with streaming (40%)
       setCurrentStep('Creating personalized rap lyrics...');
       setProgress(40);
       
-      // Simulate streaming lyrics
+      // Generate rap lyrics using AI
       setIsStreamingLyrics(true);
       setStreamingLyrics('');
       
-      const lyricsLines = [
-        `Yo, I'm ${selectedChar.name.split(' ')[0]}, your celebrity crush`,
-        'Making moves that will make your heart rush',
-        'From the stage to your screen, I\'m here to stay',
-        'This is our moment, don\'t let it slip away',
-        'Every beat drops like my love for you',
-        'This rap is real, and our connection is too',
-        'At the end of this video, you\'ll see what I mean',
-        'A kiss from me, like a beautiful dream'
-      ];
+      const rapPrompt = `Create a personalized rap song for ${selectedChar.name.split(' ')[0]}, a ${selectedChar.name.includes('BTS') || selectedChar.name.includes('BLACKPINK') ? 'K-pop star' : 'celebrity character'}. The rap should be romantic and flirty, mentioning that they will give the listener a kiss at the end. Make it catchy, with rhymes and rhythm. Keep it to about 8 lines. The tone should be confident and charming.`;
 
-      for (let i = 0; i < lyricsLines.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, 800)); // 800ms delay between lines
-        setStreamingLyrics(prev => prev + (prev ? '\n' : '') + lyricsLines[i]);
+      const lyricsResponse = await makeApiCallWithRetry('/api/generate-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: rapPrompt,
+          verbosity: 'medium',
+          reasoning_effort: 'minimal'
+        }),
+      });
+
+      if (!lyricsResponse.ok) {
+        throw new Error('Failed to generate rap lyrics');
+      }
+
+      const lyricsData = await lyricsResponse.json();
+      if (lyricsData.error) {
+        throw new Error(lyricsData.error);
+      }
+
+      // Simulate streaming by breaking the text into lines and displaying them progressively
+      const lines = lyricsData.text.split('\n').filter((line: string) => line.trim());
+      let currentLyrics = '';
+      
+      for (let i = 0; i < lines.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 600)); // 600ms delay between lines
+        currentLyrics += (currentLyrics ? '\n' : '') + lines[i];
+        setStreamingLyrics(currentLyrics);
       }
 
       setIsStreamingLyrics(false);
-      const finalLyrics = lyricsLines.join('\n');
-      setRapLyrics(finalLyrics);
+      setRapLyrics(lyricsData.text);
+
+      // Add delay to prevent rate limiting
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
 
       // Step 3: Generate Music (60%)
       setCurrentStep('Composing rap music...');
       setProgress(60);
 
-      const musicResponse = await fetch('/api/generate-music', {
+      const musicResponse = await makeApiCallWithRetry('/api/generate-music', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: `Rap music with lyrics: ${finalLyrics}. Hip hop beat, urban style, energetic rhythm`,
+          prompt: `Rap music with lyrics: ${lyricsData.text}. Hip hop beat, urban style, energetic rhythm`,
           duration: 15, // 15 seconds as requested
           modelVersion: 'stereo-large',
           outputFormat: 'wav'
@@ -322,14 +379,18 @@ export default function Home() {
 
       setGeneratedMusic(musicData.audioUrl);
 
+      // Add delay to prevent rate limiting
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
+
       // Step 4: Compose Video (80%)
       setCurrentStep('Composing final video with celebrity...');
       setProgress(80);
 
-      const composeResponse = await fetch('/api/compose-video', {
+      const composeResponse = await fetch('/api/generate-video', {
         method: 'POST',
         body: (() => {
           const formData = new FormData();
+          formData.append('type', 'compose');
           formData.append('backgroundVideo', videoFile);
           formData.append('characterImage', characterData.imageUrl);
           if (musicData.audioUrl) {
@@ -349,6 +410,9 @@ export default function Home() {
       }
 
       setComposedVideo(composeData.videoUrl);
+
+      // Add delay to prevent rate limiting
+      await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
 
       // Step 5: Generate Caption (100%)
       setCurrentStep('Adding final touches...');
@@ -455,128 +519,8 @@ export default function Home() {
     }
   };
 
-  const generateCharacter = async () => {
-    setIsGeneratingCharacter(true);
-    setError(null);
 
-    try {
-      const selectedChar = characterOptions.find(char => char.id === selectedCharacter);
-      if (!selectedChar) {
-        setError('Please select a character');
-        return;
-      }
 
-      const response = await fetch('/api/generate-avatar', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          description: selectedChar.description
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate character');
-      }
-
-      const data = await response.json();
-      
-      if (data.error) {
-        setError(data.error);
-      } else {
-        setBlueCharacter(data.imageUrl);
-      }
-    } catch (err) {
-      setError('Failed to generate character. Please try again.');
-      console.error('Character generation error:', err);
-    } finally {
-      setIsGeneratingCharacter(false);
-    }
-  };
-
-  const generateMusic = async () => {
-    if (!rapLyrics.trim()) {
-      setError('Please enter rap lyrics');
-      return;
-    }
-
-    setIsGeneratingMusic(true);
-    setError(null);
-
-    try {
-      const response = await fetch('/api/generate-music', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prompt: `Rap music with lyrics: ${rapLyrics}. Hip hop beat, urban style, energetic rhythm`,
-          duration: 30,
-          modelVersion: 'stereo-large',
-          outputFormat: 'wav'
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate music');
-      }
-
-      const data: MusicGenerationResponse = await response.json();
-      
-      if (data.error) {
-        setError(data.error);
-      } else {
-        setGeneratedMusic(data.audioUrl || null);
-      }
-    } catch (err) {
-      setError('Failed to generate music. Please try again.');
-      console.error('Music generation error:', err);
-    } finally {
-      setIsGeneratingMusic(false);
-    }
-  };
-
-  const composeVideo = async () => {
-    if (!videoFile || !blueCharacter) {
-      setError('Please record a video and generate a character first');
-      return;
-    }
-
-    setIsComposingVideo(true);
-    setError(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('backgroundVideo', videoFile);
-      formData.append('characterImage', blueCharacter);
-      if (generatedMusic) {
-        formData.append('musicUrl', generatedMusic);
-      }
-
-      const response = await fetch('/api/compose-video', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to compose video');
-      }
-
-      const data: VideoCompositionResponse = await response.json();
-      
-      if (data.error) {
-        setError(data.error);
-      } else {
-        setComposedVideo(data.videoUrl || null);
-      }
-    } catch (err) {
-      setError('Failed to compose video. Please try again.');
-      console.error('Video composition error:', err);
-    } finally {
-      setIsComposingVideo(false);
-    }
-  };
 
   const resetAll = () => {
     setIsRecording(false);
