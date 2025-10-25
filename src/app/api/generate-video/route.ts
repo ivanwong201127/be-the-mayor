@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { VideoGenerationResponse, OmniHumanInput, OmniHumanPrediction } from '@/types';
+import { VideoGenerationResponse, HailuoInput, HailuoPrediction } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
-    const audio = formData.get('audio') as string;
+    const prompt = formData.get('prompt') as string;
     const image = formData.get('image') as string;
+    const duration = formData.get('duration') as string;
 
-    if (!audio || !image) {
+    if (!prompt || !image) {
       return NextResponse.json(
-        { error: 'Audio and image are required for video generation' },
+        { error: 'Prompt and image are required for video generation' },
         { status: 400 }
       );
     }
@@ -23,22 +24,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate video using omni-human with the provided image
-    const input: OmniHumanInput = {
-      audio: audio,
-      image: image
+    // Generate video using Hailuo with the provided image
+    const input: HailuoInput = {
+      prompt: prompt,
+      go_fast: true,
+      duration: parseInt(duration) || 6,
+      prompt_optimizer: false,
+      first_frame_image: image
     };
 
-    console.log('Generating omni-human video with input:', JSON.stringify(input, null, 2));
+    console.log('Generating Hailuo video with input:', JSON.stringify(input, null, 2));
 
     // Retry logic for queue full errors
-    let data: OmniHumanPrediction | null = null;
+    let data: HailuoPrediction | null = null;
     
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        console.log(`Attempt ${attempt}/3: Generating omni-human video...`);
+        console.log(`Attempt ${attempt}/3: Generating Hailuo video...`);
         
-        const response = await fetch('https://api.replicate.com/v1/models/bytedance/omni-human/predictions', {
+        const response = await fetch('https://api.replicate.com/v1/models/hailuo/hailuo-video/predictions', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${replicateApiToken}`,
@@ -50,7 +54,7 @@ export async function POST(request: NextRequest) {
 
         if (!response.ok) {
           const errorData = await response.text();
-          console.error(`Attempt ${attempt}/3 - Omni-human API error:`, errorData);
+          console.error(`Attempt ${attempt}/3 - Hailuo API error:`, errorData);
           
           // Check if it's a queue full error
           if (errorData.includes('Queue is full') || errorData.includes('queue is full')) {
@@ -67,10 +71,10 @@ export async function POST(request: NextRequest) {
             }
           } else {
             // Non-queue error, don't retry
-            return NextResponse.json(
-              { error: 'Failed to generate omni-human video' },
-              { status: 500 }
-            );
+              return NextResponse.json(
+                { error: 'Failed to generate Hailuo video' },
+                { status: 500 }
+              );
           }
         }
 
@@ -117,7 +121,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('Omni-human API response:', data);
+    console.log('Hailuo API response:', data);
     
     if (data.output && typeof data.output === 'string') {
       return NextResponse.json({

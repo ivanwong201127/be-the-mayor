@@ -349,19 +349,22 @@ export interface MapData {
   usaOutline: string;
 }
 
-// Omni-Human API Types
-export interface OmniHumanInput {
-  audio: string;
-  image: string;
+// Hailuo API Types
+export interface HailuoInput {
+  prompt: string;
+  go_fast: boolean;
+  duration: number;
+  prompt_optimizer: boolean;
+  first_frame_image: string;
 }
 
-export interface OmniHumanPrediction {
+export interface HailuoPrediction {
   id: string;
   status: 'starting' | 'processing' | 'succeeded' | 'failed' | 'canceled';
   created_at: string;
   started_at?: string;
   completed_at?: string;
-  input: OmniHumanInput;
+  input: HailuoInput;
   output?: string; // Video URL
   error?: string;
   logs?: string;

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
+import { CHARACTER_PROMPTS } from "@/constants/characters";
 
 export default function Home() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -173,44 +174,7 @@ export default function Home() {
   }, []);
 
   // Character options for generation
-  const characterOptions = [
-    {
-      id: "blue",
-      name: "Blue Character",
-      description:
-        "A blue humanoid character, futuristic and sleek, with glowing blue skin, metallic blue armor, and confident posture. The character should look like a mayor or leader, standing tall with arms crossed or pointing forward. Blue eyes, blue hair, wearing a blue suit or armor. Sci-fi style, high quality, detailed. At the end of the video, the character will give you a kiss. The video should be at least 15 seconds long.",
-    },
-    {
-      id: "bts-jungkook",
-      name: "Jungkook (BTS)",
-      description:
-        "Jungkook from BTS, Korean pop star, handsome young man with dark hair, charismatic smile, wearing stylish modern outfit, confident pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, Jungkook will give you a kiss. The video should be at least 15 seconds long.",
-    },
-    {
-      id: "bts-jimin",
-      name: "Jimin (BTS)",
-      description:
-        "Jimin from BTS, Korean pop star, elegant and graceful young man with blonde hair, charming smile, wearing fashionable outfit, artistic pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, Jimin will give you a kiss. The video should be at least 15 seconds long.",
-    },
-    {
-      id: "bts-v",
-      name: "V (BTS)",
-      description:
-        "V from BTS, Korean pop star, handsome young man with dark hair, mysterious and charismatic expression, wearing trendy outfit, cool pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, V will give you a kiss. The video should be at least 15 seconds long.",
-    },
-    {
-      id: "blackpink-jennie",
-      name: "Jennie (BLACKPINK)",
-      description:
-        "Jennie from BLACKPINK, Korean pop star, beautiful young woman with dark hair, confident and stylish expression, wearing fashionable outfit, elegant pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, Jennie will give you a kiss. The video should be at least 15 seconds long.",
-    },
-    {
-      id: "blackpink-lisa",
-      name: "Lisa (BLACKPINK)",
-      description:
-        "Lisa from BLACKPINK, Korean pop star, beautiful young woman with blonde hair, energetic and charismatic expression, wearing trendy outfit, dynamic pose, K-pop idol style, high quality portrait, detailed facial features. At the end of the video, Lisa will give you a kiss. The video should be at least 15 seconds long.",
-    },
-  ];
+  const characterOptions = CHARACTER_PROMPTS;
 
   const captureImage = useCallback(async () => {
     try {
@@ -435,27 +399,24 @@ export default function Home() {
         setIsStreamingLyrics(true);
         setStreamingLyrics("");
 
-        const rapPrompt = `Create a personalized rap song for ${
-          selectedChar.name.split(" ")[0]
-        }, a ${
-          selectedChar.name.includes("BTS") ||
-          selectedChar.name.includes("BLACKPINK")
-            ? "K-pop star"
-            : "celebrity character"
-        }. The rap should be romantic and flirty, mentioning that they will give the listener a kiss at the end. Make it catchy, with rhymes and rhythm. Keep it to about 8 lines. The tone should be confident and charming.`;
+        const characterData = characterOptions.find(char => char.id === selectedCharacter);
+        const rapPrompt = characterData?.rapPrompt || `Create a personalized rap song for ${selectedChar.name.split(" ")[0]}. The rap should be romantic and flirty, mentioning that they will give the listener a kiss at the end. Make it catchy, with rhymes and rhythm. Keep it to about 8 lines. The tone should be confident and charming.`;
 
-        const lyricsResponse = await makeApiCallWithRetry("/api/generate-text", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: rapPrompt,
-            verbosity: "medium",
-            reasoning_effort: "minimal",
-            max_completion_tokens: 500,
+        const lyricsResponse = await makeApiCallWithRetry(
+          "/api/generate-text",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: rapPrompt,
+              verbosity: "medium",
+              reasoning_effort: "minimal",
+              max_completion_tokens: 500,
             system_prompt:
-              "You are a talented rap songwriter. Create catchy, rhyming rap lyrics with a romantic and flirty tone. Focus on rhythm and flow. Keep responses concise and engaging.",
-          }),
-        });
+              "You are a talented rap songwriter. Return ONLY the rap lyrics, no instructions, no explanations, no additional text. Just the lyrics themselves.",
+            }),
+          }
+        );
 
         if (!lyricsResponse.ok) {
           throw new Error("Failed to generate rap lyrics");
@@ -501,7 +462,7 @@ export default function Home() {
               },
             }),
           });
-          
+
           if (response.ok) {
             console.log("Saved lyrics to cache:", lyricsCacheKey);
           }
@@ -531,7 +492,7 @@ export default function Home() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               lyrics: lyricsData.text,
-              duration: 20, // 20 seconds as requested
+              duration: 10, // 20 seconds as requested
               bitrate: 256000,
               sample_rate: 44100,
             }),
@@ -597,27 +558,30 @@ export default function Home() {
       setCurrentStep("Creating video with celebrity rapping...");
       setProgress(90);
 
-      const omniHumanResponse = await fetch("/api/generate-video", {
+      const hailuoResponse = await fetch("/api/generate-video", {
         method: "POST",
         body: (() => {
           const formData = new FormData();
-          if (musicUrl) formData.append("audio", musicUrl);
+          // Create a prompt for the video based on the character and lyrics
+          const videoPrompt = `A video of ${selectedChar.name} rapping and performing in the environment. The celebrity should be lip-syncing to the rap music, moving naturally with the beat. At the end of the video, ${selectedChar.name} should give a kiss to the camera. High quality, cinematic lighting, realistic movement.`;
+          formData.append("prompt", videoPrompt);
           if (characterImageData.imageUrl)
             formData.append("image", characterImageData.imageUrl);
+          formData.append("duration", "10"); // 15 seconds as requested
           return formData;
         })(),
       });
 
-      if (!omniHumanResponse.ok) {
-        throw new Error("Failed to generate omni-human video");
+      if (!hailuoResponse.ok) {
+        throw new Error("Failed to generate Hailuo video");
       }
 
-      const omniHumanData = await omniHumanResponse.json();
-      if (omniHumanData.error) {
-        throw new Error(omniHumanData.error);
+      const hailuoData = await hailuoResponse.json();
+      if (hailuoData.error) {
+        throw new Error(hailuoData.error);
       }
 
-      setFinalVideo(omniHumanData.videoUrl);
+      setFinalVideo(hailuoData.videoUrl);
 
       // Add delay to prevent rate limiting
       await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 second delay
@@ -631,7 +595,8 @@ export default function Home() {
     }
   };
 
-  const resetAll = () => {
+  const resetAll = async () => {
+    // Clear local state
     setCapturedImage(null);
     setImageFile(null);
     setCaption(null);
@@ -646,9 +611,25 @@ export default function Home() {
     setCharacterImageUrl(null);
     setCachedRecordedVideo(null);
 
+    // Clear camera stream
     if (cameraStreamRef.current) {
       cameraStreamRef.current.getTracks().forEach((track) => track.stop());
       cameraStreamRef.current = null;
+    }
+
+    // Clear all cache data
+    try {
+      const response = await fetch("/api/cache", {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        console.log("All cache data cleared successfully");
+      } else {
+        console.error("Failed to clear cache data");
+      }
+    } catch (error) {
+      console.error("Error clearing cache:", error);
     }
   };
 
@@ -674,7 +655,7 @@ export default function Home() {
               🗳️ Campaign Mode
             </Link> */}
             <button
-              onClick={resetAll}
+              onClick={() => resetAll()}
               className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors"
             >
               🔄 Reset All Data
@@ -986,7 +967,7 @@ export default function Home() {
                         Your celebrity will give you a kiss at the end! 💋
                       </p>
                       <button
-                        onClick={resetAll}
+                        onClick={() => resetAll()}
                         className="bg-gray-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-gray-700 transition-colors"
                       >
                         🔄 Create Another Video
