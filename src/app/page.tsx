@@ -26,6 +26,9 @@ export default function Home() {
   const [cachedRecordedVideo, setCachedRecordedVideo] = useState<string | null>(
     null
   );
+  const [cachedCapturedImage, setCachedCapturedImage] = useState<string | null>(
+    null
+  );
 
   // New states for unified flow
   const [isProcessingFlow, setIsProcessingFlow] = useState(false);
@@ -149,7 +152,7 @@ export default function Home() {
             if (key.startsWith("captured-image-")) {
               const entry = cache[key];
               if (entry && entry.url) {
-                setCachedRecordedVideo(entry.url);
+                setCachedCapturedImage(entry.url);
                 // Also set as current captured image so user doesn't need to re-capture
                 setCapturedImage(entry.url);
                 console.log("Loaded cached captured image:", entry.url);
@@ -214,20 +217,18 @@ export default function Home() {
             return;
           }
 
-          // Create image URL and file
-          const imageUrl = URL.createObjectURL(blob);
+          // Create image file
           const file = new File([blob], "captured-image.jpg", {
             type: "image/jpeg",
           });
 
-          setCapturedImage(imageUrl);
           setImageFile(file);
           setError(null);
           setCaption(null);
 
-          console.log("Image captured successfully:", imageUrl);
+          console.log("Image captured successfully");
 
-          // Save to cache
+          // Save to cache and get proper URL
           try {
             const formData = new FormData();
             formData.append("imageFile", file);
@@ -240,9 +241,18 @@ export default function Home() {
             if (response.ok) {
               const data = await response.json();
               console.log("Saved captured image to cache:", data.imageUrl);
+              // Set the proper uploaded image URL instead of blob URL
+              setCapturedImage(data.imageUrl);
+            } else {
+              // Fallback to blob URL if upload fails
+              const imageUrl = URL.createObjectURL(blob);
+              setCapturedImage(imageUrl);
             }
           } catch (error) {
             console.error("Failed to save captured image to cache:", error);
+            // Fallback to blob URL if upload fails
+            const imageUrl = URL.createObjectURL(blob);
+            setCapturedImage(imageUrl);
           }
         },
         "image/jpeg",
@@ -271,11 +281,10 @@ export default function Home() {
         }
 
         setImageFile(file);
-        setCapturedImage(URL.createObjectURL(file));
         setError(null);
         setCaption(null);
 
-        // Save to cache
+        // Save to cache and get proper URL
         try {
           const formData = new FormData();
           formData.append("imageFile", file);
@@ -288,9 +297,16 @@ export default function Home() {
           if (response.ok) {
             const data = await response.json();
             console.log("Saved uploaded image to cache:", data.imageUrl);
+            // Set the proper uploaded image URL instead of blob URL
+            setCapturedImage(data.imageUrl);
+          } else {
+            // Fallback to blob URL if upload fails
+            setCapturedImage(URL.createObjectURL(file));
           }
         } catch (error) {
           console.error("Failed to save uploaded image to cache:", error);
+          // Fallback to blob URL if upload fails
+          setCapturedImage(URL.createObjectURL(file));
         }
       }
     },
@@ -347,7 +363,7 @@ export default function Home() {
 
   // Unified flow function
   const startUnifiedFlow = async () => {
-    if (!imageFile && !cachedRecordedVideo) {
+    if (!imageFile && !cachedCapturedImage) {
       setError("Please capture or upload an image first");
       return;
     }
@@ -359,15 +375,15 @@ export default function Home() {
 
     // If we have a cached image but no current imageFile, create a file from the cached image
     let currentImageFile = imageFile;
-    if (!currentImageFile && cachedRecordedVideo) {
+    if (!currentImageFile && cachedCapturedImage) {
       try {
         // Fetch the cached image and create a File object
-        const response = await fetch(cachedRecordedVideo);
+        const response = await fetch(cachedCapturedImage);
         const blob = await response.blob();
         currentImageFile = new File([blob], "cached-image.jpg", {
           type: blob.type,
         });
-        console.log("Using cached captured image:", cachedRecordedVideo);
+        console.log("Using cached captured image:", cachedCapturedImage);
       } catch (error) {
         console.error("Failed to load cached image:", error);
         setError("Failed to load cached image. Please capture a new image.");
@@ -399,8 +415,14 @@ export default function Home() {
         setIsStreamingLyrics(true);
         setStreamingLyrics("");
 
-        const characterData = characterOptions.find(char => char.id === selectedCharacter);
-        const rapPrompt = characterData?.rapPrompt || `Create a personalized rap song for ${selectedChar.name.split(" ")[0]}. The rap should be romantic and flirty, mentioning that they will give the listener a kiss at the end. Make it catchy, with rhymes and rhythm. Keep it to about 8 lines. The tone should be confident and charming.`;
+        const characterData = characterOptions.find(
+          (char) => char.id === selectedCharacter
+        );
+        const rapPrompt =
+          characterData?.rapPrompt ||
+          `Create a personalized rap song for ${
+            selectedChar.name.split(" ")[0]
+          }. The rap should be romantic and flirty, mentioning that they will give the listener a kiss at the end. Make it catchy, with rhymes and rhythm. Keep it to about 8 lines. The tone should be confident and charming.  Return ONLY the rap lyrics, no instructions, no explanations, no additional text. Just the lyrics themselves."`;
 
         const lyricsResponse = await makeApiCallWithRetry(
           "/api/generate-text",
@@ -412,8 +434,7 @@ export default function Home() {
               verbosity: "medium",
               reasoning_effort: "minimal",
               max_completion_tokens: 500,
-            system_prompt:
-              "You are a talented rap songwriter. Return ONLY the rap lyrics, no instructions, no explanations, no additional text. Just the lyrics themselves.",
+              system_prompt: "You are a talented rap songwriter.",
             }),
           }
         );
@@ -474,9 +495,86 @@ export default function Home() {
       // Add delay to prevent rate limiting
       await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 second delay
 
-      // Step 2: Generate Music (50%)
-      setCurrentStep("Composing rap music...");
+      // Step 2: Generate Image with Celebrity in Background (50%)
+      setCurrentStep("Creating image with celebrity in background...");
       setProgress(50);
+
+      const celebrityPrompt = `Create an image with ${selectedChar.name} in the background environment. The celebrity should be naturally integrated into the scene, looking like they belong in that environment. High quality, cinematic lighting, realistic composition. The celebrity will be rapping in this environment.`;
+
+      // Use captured image URL for Seedream-4
+      let inputImageUrl = null;
+      if (cachedCapturedImage) {
+        // Convert local path to full URL for Seedream-4
+        const baseUrl = window.location.origin;
+        inputImageUrl = `${baseUrl}${cachedCapturedImage}`;
+        console.log(
+          "Using cached captured image for character generation:",
+          inputImageUrl
+        );
+      } else if (capturedImage) {
+        // Check if capturedImage is a blob URL or a proper path
+        if (capturedImage.startsWith('blob:')) {
+          console.warn("Captured image is still a blob URL, uploading...");
+          // Upload the current image file to get a proper URL
+          try {
+            const uploadFormData = new FormData();
+            uploadFormData.append("imageFile", currentImageFile!);
+            
+            const uploadResponse = await fetch("/api/save-captured-image", {
+              method: "POST",
+              body: uploadFormData,
+            });
+            
+            if (uploadResponse.ok) {
+              const uploadData = await uploadResponse.json();
+              inputImageUrl = `${window.location.origin}${uploadData.imageUrl}`;
+              console.log("Uploaded image for character generation:", inputImageUrl);
+            } else {
+              console.warn("Failed to upload image, proceeding without environment");
+            }
+          } catch (uploadError) {
+            console.error("Error uploading image:", uploadError);
+            console.log("Proceeding without environment image");
+          }
+        } else {
+          // It's already a proper path
+          const baseUrl = window.location.origin;
+          inputImageUrl = `${baseUrl}${capturedImage}`;
+          console.log("Using captured image for character generation:", inputImageUrl);
+        }
+      } else {
+        console.log(
+          "No captured image found, will generate character without environment"
+        );
+      }
+
+      const characterImageResponse = await fetch("/api/get-character-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          characterName: selectedChar.name,
+          characterDescription: celebrityPrompt,
+          inputImage: inputImageUrl,
+        }),
+      });
+
+      if (!characterImageResponse.ok) {
+        throw new Error("Failed to generate celebrity image");
+      }
+
+      const characterImageData = await characterImageResponse.json();
+      if (characterImageData.error) {
+        throw new Error(characterImageData.error);
+      }
+
+      setCharacterImageUrl(characterImageData.imageUrl);
+
+      // Add delay to prevent rate limiting
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 second delay
+
+      // Step 3: Generate Music (75%)
+      setCurrentStep("Composing rap music...");
+      setProgress(75);
 
       let musicUrl = generatedMusic;
 
@@ -525,43 +623,6 @@ export default function Home() {
         console.log("Using existing music:", musicUrl);
       }
 
-      // Add delay to prevent rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 2000)); // 2 second delay
-
-      // Step 3: Generate Image with Celebrity in Background (75%)
-      setCurrentStep("Creating image with celebrity in background...");
-      setProgress(75);
-
-      const celebrityPrompt = `Create an image with ${selectedChar.name} in the background environment. The celebrity should be naturally integrated into the scene, looking like they belong in that environment. High quality, cinematic lighting, realistic composition. The celebrity will be rapping in this environment.`;
-
-      // Use cached image URL for Seedream-4
-      let inputImageUrl = null;
-      if (cachedRecordedVideo) {
-        // Use the cached image URL
-        inputImageUrl = cachedRecordedVideo;
-      }
-
-      const characterImageResponse = await fetch("/api/get-character-image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          characterName: selectedChar.name,
-          characterDescription: celebrityPrompt,
-          inputImage: inputImageUrl,
-        }),
-      });
-
-      if (!characterImageResponse.ok) {
-        throw new Error("Failed to generate celebrity image");
-      }
-
-      const characterImageData = await characterImageResponse.json();
-      if (characterImageData.error) {
-        throw new Error(characterImageData.error);
-      }
-
-      setCharacterImageUrl(characterImageData.imageUrl);
-
       // Step 4: Generate Video with Celebrity Rapping (90%)
       setCurrentStep("Creating video with celebrity rapping...");
       setProgress(90);
@@ -571,7 +632,7 @@ export default function Home() {
         body: (() => {
           const formData = new FormData();
           // Create a prompt for the video based on the character and lyrics
-          const videoPrompt = `A video of ${selectedChar.name} rapping and performing in the environment. The celebrity should be lip-syncing to the rap music, moving naturally with the beat. At the end of the video, ${selectedChar.name} should give a kiss to the camera. High quality, cinematic lighting, realistic movement.`;
+          const videoPrompt = `A video of ${selectedChar!.name} rapping and performing in the environment. The celebrity should be lip-syncing to the rap music, moving naturally with the beat. At the end of the video, ${selectedChar!.name} should give a kiss to the camera. High quality, cinematic lighting, realistic movement.`;
           formData.append("prompt", videoPrompt);
           if (characterImageData.imageUrl)
             formData.append("image", characterImageData.imageUrl);
@@ -618,6 +679,7 @@ export default function Home() {
     setRapLyrics("");
     setCharacterImageUrl(null);
     setCachedRecordedVideo(null);
+    setCachedCapturedImage(null);
 
     // Clear camera stream
     if (cameraStreamRef.current) {
@@ -877,7 +939,7 @@ export default function Home() {
                 <button
                   onClick={startUnifiedFlow}
                   disabled={
-                    (!imageFile && !cachedRecordedVideo) || isProcessingFlow
+                    (!imageFile && !cachedCapturedImage) || isProcessingFlow
                   }
                   className="bg-linear-to-r from-purple-600 to-pink-600 text-white py-6 px-12 rounded-xl font-bold hover:from-purple-700 hover:to-pink-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center gap-4 text-xl touch-manipulation shadow-lg"
                   style={{ minHeight: "60px", minWidth: "300px" }}

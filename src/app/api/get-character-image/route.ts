@@ -53,17 +53,66 @@ export async function POST(request: NextRequest) {
       throw new Error("Replicate API token not configured");
     }
 
-      // Generate image using Seedream-4
-      const input: Seedream4Input = {
-        size: "2K",
-        width: 2048,
-        height: 2048,
-        prompt: characterPrompt,
-        max_images: 1,
-        image_input: inputImage ? [inputImage] : [],
-        aspect_ratio: "16:9",
-        sequential_image_generation: "auto",
-      };
+    // Handle input image - upload to Replicate if it's a localhost URL
+    let validInputImage = null;
+    if (inputImage) {
+      try {
+        const url = new URL(inputImage);
+        
+        // Check if it's a localhost URL that needs to be uploaded to Replicate
+        if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+          console.log(`Uploading localhost image to Replicate: ${inputImage}`);
+          
+          // Download the image from localhost
+          const imageResponse = await fetch(inputImage);
+          if (!imageResponse.ok) {
+            console.warn(`Failed to fetch localhost image: ${imageResponse.status}`);
+          } else {
+            const imageBuffer = await imageResponse.arrayBuffer();
+            
+            // Upload to Replicate
+            const uploadResponse = await fetch('https://api.replicate.com/v1/files', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${replicateApiToken}`,
+                'Content-Type': 'application/octet-stream',
+              },
+              body: imageBuffer,
+            });
+            
+            if (uploadResponse.ok) {
+              const uploadData = await uploadResponse.json();
+              validInputImage = uploadData.urls.get;
+              console.log(`Successfully uploaded image to Replicate: ${validInputImage}`);
+            } else {
+              console.warn(`Failed to upload image to Replicate: ${uploadResponse.status}`);
+            }
+          }
+        } else if (url.protocol === 'http:' || url.protocol === 'https:') {
+          // It's already a public URL
+          validInputImage = inputImage;
+          console.log(`Using public input image: ${validInputImage}`);
+        } else {
+          console.warn(`Invalid input image protocol: ${url.protocol}. Skipping input image.`);
+        }
+      } catch (error) {
+        console.warn(`Invalid input image URL: ${inputImage}. Skipping input image.`, error);
+      }
+    }
+
+    // Generate image using Seedream-4
+    const input: Seedream4Input = {
+      size: "2K",
+      width: 2048,
+      height: 1536, // 4:3 aspect ratio: 2048 / 4 * 3 = 1536
+      prompt: characterPrompt,
+      max_images: 1,
+      image_input: validInputImage ? [validInputImage] : [],
+      aspect_ratio: "4:3",
+      sequential_image_generation: "auto",
+    };
+
+    console.log("Sending request to Seedream-4 with input:", JSON.stringify(input, null, 2));
 
     const response = await fetch(
       "https://api.replicate.com/v1/models/bytedance/seedream-4/predictions",
@@ -78,12 +127,15 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    console.log("Replicate API response:", response);
+    console.log("Replicate API response status:", response.status);
+    console.log("Replicate API response headers:", Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const errorData = await response.text();
       console.error("Replicate API error:", errorData);
-      throw new Error("Failed to generate character image");
+      console.error("Response status:", response.status);
+      console.error("Response statusText:", response.statusText);
+      throw new Error(`Failed to generate character image: ${response.status} ${response.statusText}`);
     }
 
     const data: Seedream4Prediction = await response.json();
