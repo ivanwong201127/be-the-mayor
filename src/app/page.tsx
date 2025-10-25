@@ -324,7 +324,9 @@ export default function Home() {
         body: JSON.stringify({
           prompt: rapPrompt,
           verbosity: 'medium',
-          reasoning_effort: 'minimal'
+          reasoning_effort: 'minimal',
+          max_completion_tokens: 500,
+          system_prompt: 'You are a talented rap songwriter. Create catchy, rhyming rap lyrics with a romantic and flirty tone. Focus on rhythm and flow. Keep responses concise and engaging.'
         }),
       });
 

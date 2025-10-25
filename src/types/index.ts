@@ -216,11 +216,13 @@ export interface MusicGenerationResponse {
 
 // Text Generation API Types
 export interface TextGenInput {
-  prompt: string;
+  prompt?: string;
   messages?: any[];
-  verbosity?: 'minimal' | 'medium' | 'verbose';
+  verbosity?: 'low' | 'medium' | 'high';
   image_input?: any[];
-  reasoning_effort?: 'minimal' | 'medium' | 'high';
+  reasoning_effort?: 'minimal' | 'low' | 'medium' | 'high';
+  max_completion_tokens?: number;
+  system_prompt?: string;
 }
 
 export interface TextGenPrediction {
@@ -252,9 +254,11 @@ export interface TextGenPrediction {
 export interface TextGenerationRequest {
   prompt: string;
   messages?: any[];
-  verbosity?: 'minimal' | 'medium' | 'verbose';
+  verbosity?: 'low' | 'medium' | 'high';
   image_input?: any[];
-  reasoning_effort?: 'minimal' | 'medium' | 'high';
+  reasoning_effort?: 'minimal' | 'low' | 'medium' | 'high';
+  max_completion_tokens?: number;
+  system_prompt?: string;
 }
 
 export interface TextGenerationResponse {
