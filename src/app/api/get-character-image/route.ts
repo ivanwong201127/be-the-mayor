@@ -50,7 +50,11 @@ export async function POST(request: NextRequest) {
     const replicateApiToken = process.env.REPLICATE_API_KEY;
 
     if (!replicateApiToken) {
-      throw new Error("Replicate API token not configured");
+      console.error("REPLICATE_API_KEY environment variable is not set");
+      return NextResponse.json(
+        { error: "API configuration error. Please contact support." },
+        { status: 500 }
+      );
     }
 
     // Handle input image - should be a public URL now
