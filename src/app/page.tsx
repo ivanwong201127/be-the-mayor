@@ -506,15 +506,15 @@ export default function Home() {
       if (cachedCapturedImage) {
         // Convert local path to full URL and upload to Replicate
         const baseUrl = window.location.origin;
-        const localhostUrl = `${baseUrl}${cachedCapturedImage}`;
+        const imageUrl = `${baseUrl}${cachedCapturedImage}`;
         
         try {
-          console.log(`Uploading localhost image to Replicate: ${localhostUrl}`);
+          console.log(`Uploading image to Replicate: ${imageUrl}`);
           
-          // Download the image from localhost
-          const imageResponse = await fetch(localhostUrl);
+          // Download the image from server
+          const imageResponse = await fetch(imageUrl);
           if (!imageResponse.ok) {
-            console.warn(`Failed to fetch localhost image: ${imageResponse.status}`);
+            console.warn(`Failed to fetch image: ${imageResponse.status}`);
           } else {
             const imageBlob = await imageResponse.blob();
             const imageFile = new File([imageBlob], "captured-image.jpg", { type: "image/jpeg" });
@@ -567,10 +567,10 @@ export default function Home() {
         } else {
           // It's already a proper path - upload to Replicate
           const baseUrl = window.location.origin;
-          const localhostUrl = `${baseUrl}${capturedImage}`;
+          const imageUrl = `${baseUrl}${capturedImage}`;
           
           try {
-            const imageResponse = await fetch(localhostUrl);
+            const imageResponse = await fetch(imageUrl);
             if (imageResponse.ok) {
               const imageBlob = await imageResponse.blob();
               const imageFile = new File([imageBlob], "captured-image.jpg", { type: "image/jpeg" });
