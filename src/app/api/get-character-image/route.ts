@@ -53,45 +53,15 @@ export async function POST(request: NextRequest) {
       throw new Error("Replicate API token not configured");
     }
 
-    // Handle input image - upload to Replicate if it's a localhost URL
+    // Handle input image - should be a public URL now
     let validInputImage = null;
     if (inputImage) {
       try {
         const url = new URL(inputImage);
-        
-        // Check if it's a localhost URL that needs to be uploaded to Replicate
-        if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
-          console.log(`Uploading localhost image to Replicate: ${inputImage}`);
-          
-          // Download the image from localhost
-          const imageResponse = await fetch(inputImage);
-          if (!imageResponse.ok) {
-            console.warn(`Failed to fetch localhost image: ${imageResponse.status}`);
-          } else {
-            const imageBuffer = await imageResponse.arrayBuffer();
-            
-            // Upload to Replicate
-            const uploadResponse = await fetch('https://api.replicate.com/v1/files', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${replicateApiToken}`,
-                'Content-Type': 'application/octet-stream',
-              },
-              body: imageBuffer,
-            });
-            
-            if (uploadResponse.ok) {
-              const uploadData = await uploadResponse.json();
-              validInputImage = uploadData.urls.get;
-              console.log(`Successfully uploaded image to Replicate: ${validInputImage}`);
-            } else {
-              console.warn(`Failed to upload image to Replicate: ${uploadResponse.status}`);
-            }
-          }
-        } else if (url.protocol === 'http:' || url.protocol === 'https:') {
-          // It's already a public URL
+        // Only allow http/https URLs for Seedream-4
+        if (url.protocol === 'http:' || url.protocol === 'https:') {
           validInputImage = inputImage;
-          console.log(`Using public input image: ${validInputImage}`);
+          console.log(`Using input image: ${validInputImage}`);
         } else {
           console.warn(`Invalid input image protocol: ${url.protocol}. Skipping input image.`);
         }

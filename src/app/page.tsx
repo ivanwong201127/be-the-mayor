@@ -504,31 +504,59 @@ export default function Home() {
       // Use captured image URL for Seedream-4
       let inputImageUrl = null;
       if (cachedCapturedImage) {
-        // Convert local path to full URL for Seedream-4
+        // Convert local path to full URL and upload to Replicate
         const baseUrl = window.location.origin;
-        inputImageUrl = `${baseUrl}${cachedCapturedImage}`;
-        console.log(
-          "Using cached captured image for character generation:",
-          inputImageUrl
-        );
-      } else if (capturedImage) {
-        // Check if capturedImage is a blob URL or a proper path
-        if (capturedImage.startsWith('blob:')) {
-          console.warn("Captured image is still a blob URL, uploading...");
-          // Upload the current image file to get a proper URL
-          try {
-            const uploadFormData = new FormData();
-            uploadFormData.append("imageFile", currentImageFile!);
+        const localhostUrl = `${baseUrl}${cachedCapturedImage}`;
+        
+        try {
+          console.log(`Uploading localhost image to Replicate: ${localhostUrl}`);
+          
+          // Download the image from localhost
+          const imageResponse = await fetch(localhostUrl);
+          if (!imageResponse.ok) {
+            console.warn(`Failed to fetch localhost image: ${imageResponse.status}`);
+          } else {
+            const imageBlob = await imageResponse.blob();
+            const imageFile = new File([imageBlob], "captured-image.jpg", { type: "image/jpeg" });
             
-            const uploadResponse = await fetch("/api/save-captured-image", {
+            // Upload to Replicate via our API
+            const uploadFormData = new FormData();
+            uploadFormData.append("imageFile", imageFile);
+            
+            const uploadResponse = await fetch("/api/upload-to-replicate", {
               method: "POST",
               body: uploadFormData,
             });
             
             if (uploadResponse.ok) {
               const uploadData = await uploadResponse.json();
-              inputImageUrl = `${window.location.origin}${uploadData.imageUrl}`;
-              console.log("Uploaded image for character generation:", inputImageUrl);
+              inputImageUrl = uploadData.replicateUrl;
+              console.log(`Successfully uploaded image to Replicate: ${inputImageUrl}`);
+            } else {
+              console.warn(`Failed to upload image to Replicate: ${uploadResponse.status}`);
+            }
+          }
+        } catch (uploadError) {
+          console.error("Error uploading image to Replicate:", uploadError);
+        }
+      } else if (capturedImage) {
+        // Check if capturedImage is a blob URL or a proper path
+        if (capturedImage.startsWith('blob:')) {
+          console.warn("Captured image is still a blob URL, uploading...");
+          // Upload the current image file to Replicate
+          try {
+            const uploadFormData = new FormData();
+            uploadFormData.append("imageFile", currentImageFile!);
+            
+            const uploadResponse = await fetch("/api/upload-to-replicate", {
+              method: "POST",
+              body: uploadFormData,
+            });
+            
+            if (uploadResponse.ok) {
+              const uploadData = await uploadResponse.json();
+              inputImageUrl = uploadData.replicateUrl;
+              console.log("Uploaded image to Replicate:", inputImageUrl);
             } else {
               console.warn("Failed to upload image, proceeding without environment");
             }
@@ -537,10 +565,33 @@ export default function Home() {
             console.log("Proceeding without environment image");
           }
         } else {
-          // It's already a proper path
+          // It's already a proper path - upload to Replicate
           const baseUrl = window.location.origin;
-          inputImageUrl = `${baseUrl}${capturedImage}`;
-          console.log("Using captured image for character generation:", inputImageUrl);
+          const localhostUrl = `${baseUrl}${capturedImage}`;
+          
+          try {
+            const imageResponse = await fetch(localhostUrl);
+            if (imageResponse.ok) {
+              const imageBlob = await imageResponse.blob();
+              const imageFile = new File([imageBlob], "captured-image.jpg", { type: "image/jpeg" });
+              
+              const uploadFormData = new FormData();
+              uploadFormData.append("imageFile", imageFile);
+              
+              const uploadResponse = await fetch("/api/upload-to-replicate", {
+                method: "POST",
+                body: uploadFormData,
+              });
+              
+              if (uploadResponse.ok) {
+                const uploadData = await uploadResponse.json();
+                inputImageUrl = uploadData.replicateUrl;
+                console.log("Using captured image for character generation:", inputImageUrl);
+              }
+            }
+          } catch (error) {
+            console.error("Error uploading captured image:", error);
+          }
         }
       } else {
         console.log(
@@ -632,7 +683,7 @@ export default function Home() {
         body: (() => {
           const formData = new FormData();
           // Create a prompt for the video based on the character and lyrics
-          const videoPrompt = `A video of ${selectedChar!.name} rapping and performing in the environment. The celebrity should be lip-syncing to the rap music, moving naturally with the beat. At the end of the video, ${selectedChar!.name} should give a kiss to the camera. High quality, cinematic lighting, realistic movement.`;
+          const videoPrompt = `A video of ${selectedChar!.name} rapping and performing in the environment. The celebrity should be lip-syncing to the rap music, moving naturally with the beat. At the end of the video. High quality, cinematic lighting, realistic movement.`;
           formData.append("prompt", videoPrompt);
           if (characterImageData.imageUrl)
             formData.append("image", characterImageData.imageUrl);
@@ -878,7 +929,7 @@ export default function Home() {
                     <h4 className="text-md font-medium text-gray-900 mb-3">
                       Your Image
                     </h4>
-                    <Image
+            <Image
                       src={capturedImage}
                       alt="Captured image"
                       width={800}
