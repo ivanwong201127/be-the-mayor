@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { CHARACTER_PROMPTS } from "@/constants/characters";
+import { getBaseUrl, getEnvironment } from "@/lib/environment";
 
 export default function Home() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -503,18 +504,22 @@ export default function Home() {
 
       // Use captured image URL for Seedream-4
       let inputImageUrl = null;
+      const environment = getEnvironment();
+      const baseUrl = getBaseUrl();
+      
+      console.log(`Environment detected: ${environment}, Base URL: ${baseUrl}`);
+      
       if (cachedCapturedImage) {
         // Convert local path to full URL and upload to Replicate
-        const baseUrl = window.location.origin;
         const imageUrl = `${baseUrl}${cachedCapturedImage}`;
         
         try {
-          console.log(`Uploading image to Replicate: ${imageUrl}`);
+          console.log(`Uploading image to Replicate from ${environment}: ${imageUrl}`);
           
           // Download the image from server
           const imageResponse = await fetch(imageUrl);
           if (!imageResponse.ok) {
-            console.warn(`Failed to fetch image: ${imageResponse.status}`);
+            console.warn(`Failed to fetch image from ${environment}: ${imageResponse.status}`);
           } else {
             const imageBlob = await imageResponse.blob();
             const imageFile = new File([imageBlob], "captured-image.jpg", { type: "image/jpeg" });
@@ -531,18 +536,18 @@ export default function Home() {
             if (uploadResponse.ok) {
               const uploadData = await uploadResponse.json();
               inputImageUrl = uploadData.replicateUrl;
-              console.log(`Successfully uploaded image to Replicate: ${inputImageUrl}`);
+              console.log(`Successfully uploaded image to Replicate from ${environment}: ${inputImageUrl}`);
             } else {
-              console.warn(`Failed to upload image to Replicate: ${uploadResponse.status}`);
+              console.warn(`Failed to upload image to Replicate from ${environment}: ${uploadResponse.status}`);
             }
           }
         } catch (uploadError) {
-          console.error("Error uploading image to Replicate:", uploadError);
+          console.error(`Error uploading image to Replicate from ${environment}:`, uploadError);
         }
       } else if (capturedImage) {
         // Check if capturedImage is a blob URL or a proper path
         if (capturedImage.startsWith('blob:')) {
-          console.warn("Captured image is still a blob URL, uploading...");
+          console.warn(`Captured image is still a blob URL in ${environment}, uploading...`);
           // Upload the current image file to Replicate
           try {
             const uploadFormData = new FormData();
@@ -556,20 +561,20 @@ export default function Home() {
             if (uploadResponse.ok) {
               const uploadData = await uploadResponse.json();
               inputImageUrl = uploadData.replicateUrl;
-              console.log("Uploaded image to Replicate:", inputImageUrl);
+              console.log(`Uploaded blob image to Replicate from ${environment}:`, inputImageUrl);
             } else {
-              console.warn("Failed to upload image, proceeding without environment");
+              console.warn(`Failed to upload blob image from ${environment}, proceeding without environment`);
             }
           } catch (uploadError) {
-            console.error("Error uploading image:", uploadError);
-            console.log("Proceeding without environment image");
+            console.error(`Error uploading blob image from ${environment}:`, uploadError);
+            console.log(`Proceeding without environment image in ${environment}`);
           }
         } else {
           // It's already a proper path - upload to Replicate
-          const baseUrl = window.location.origin;
           const imageUrl = `${baseUrl}${capturedImage}`;
           
           try {
+            console.log(`Fetching image from ${environment}: ${imageUrl}`);
             const imageResponse = await fetch(imageUrl);
             if (imageResponse.ok) {
               const imageBlob = await imageResponse.blob();
@@ -586,16 +591,18 @@ export default function Home() {
               if (uploadResponse.ok) {
                 const uploadData = await uploadResponse.json();
                 inputImageUrl = uploadData.replicateUrl;
-                console.log("Using captured image for character generation:", inputImageUrl);
+                console.log(`Using captured image for character generation from ${environment}:`, inputImageUrl);
               }
+            } else {
+              console.warn(`Failed to fetch image from ${environment}: ${imageResponse.status}`);
             }
           } catch (error) {
-            console.error("Error uploading captured image:", error);
+            console.error(`Error uploading captured image from ${environment}:`, error);
           }
         }
       } else {
         console.log(
-          "No captured image found, will generate character without environment"
+          `No captured image found in ${environment}, will generate character without environment`
         );
       }
 
